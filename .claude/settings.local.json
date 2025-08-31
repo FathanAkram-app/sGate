@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm build:*)",
+      "Bash(pnpm start:dev:*)",
+      "Bash(pnpm start:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker volume rm:*)",
+      "Bash(pnpm migration:run:*)",
+      "Bash(pnpm seed:*)",
+      "Bash(curl:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(GATEWAY_ADDRESS=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM API_BASE_URL=http://localhost:4000 CHECKOUT_BASE_URL=http://localhost:3000 pnpm start:prod)",
+      "Bash(node:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(PORT=4001 pnpm start:dev:*)",
+      "Bash(PORT=4001 npx ts-node src/main.ts)",
+      "Bash(npx ts-node:*)",
+      "Bash(rm:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(timeout 10 npm run dev)",
+      "Bash(timeout 5 npm run start:dev)",
+      "Bash(timeout:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

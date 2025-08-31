@@ -1,0 +1,12 @@
+export declare function generateId(prefix: string): string;
+export declare function generateApiKey(): string;
+export declare function generateClientSecret(paymentIntentId: string): string;
+export declare function hashApiKey(apiKey: string, salt: string): string;
+export declare function verifyApiKey(apiKey: string, hash: string, salt: string): boolean;
+export declare function encodePaymentIntentMemo(paymentIntentId: string): string;
+export declare function decodePaymentIntentMemo(memoHex: string): string | null;
+export declare function signWebhookPayload(payload: string, secret: string, timestamp: number): string;
+export declare function verifyWebhookSignature(payload: string, signature: string, secret: string, tolerance?: number): boolean;
+export declare function satsToUsd(sats: bigint, usdPerBtc: number): number;
+export declare function sleep(ms: number): Promise<void>;
+export declare function exponentialBackoff(attempt: number, baseDelay?: number, maxDelay?: number): number;

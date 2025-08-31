@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: sgate
+      POSTGRES_PASSWORD: sgate
+      POSTGRES_DB: sgate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sgate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ../
+      dockerfile: infra/Dockerfile.api
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgres://sgate:sgate@postgres:5432/sgate
+      - STACKS_NETWORK=testnet
+      - HIRO_API_BASE=https://api.testnet.hiro.so
+      - SBTC_ASSET_IDENTIFIER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sbtc-token::sbtc
+      - GATEWAY_ADDRESS=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      - JWT_SECRET=dev-sgate-jwt-secret-change-in-production
+      - WEBHOOK_SIGNATURE_SALT=sgate_wh_32bytes_min_change_in_production
+      - API_KEY_SALT=sgate_api_32bytes_min_change_in_production
+      - API_BASE_URL=http://localhost:4000
+      - CHECKOUT_BASE_URL=http://localhost:3000
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+    command: ["pnpm", "dev"]
+
+  checkout:
+    build:
+      context: ../
+      dockerfile: infra/Dockerfile.checkout
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - /app/apps/checkout/node_modules
+    command: ["pnpm", "dev"]
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

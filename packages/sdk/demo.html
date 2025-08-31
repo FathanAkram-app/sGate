@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sGate UI Library Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .demo-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        
+        .demo-card h3 {
+            margin: 0 0 16px 0;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .demo-card p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .theme-toggle {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .theme-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            margin: 0 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .theme-btn.active {
+            background: #764ba2;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+        }
+        
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 sGate UI Library Demo</h1>
+            <p>Plug-and-play sBTC payment components for any website</p>
+        </div>
+        
+        <div class="theme-toggle">
+            <strong>Theme:</strong>
+            <button class="theme-btn active" onclick="setTheme('light')">Light</button>
+            <button class="theme-btn" onclick="setTheme('dark')">Dark</button>
+        </div>
+        
+        <div class="demo-grid">
+            <!-- Payment Button Demo -->
+            <div class="demo-card">
+                <h3>💳 Payment Button</h3>
+                <p>Simple "Pay with sBTC" button that opens checkout flow</p>
+                <div id="payment-button-demo"></div>
+                <div class="log" id="button-log">Click the button to test...</div>
+            </div>
+            
+            <!-- Payment Form Demo -->
+            <div class="demo-card">
+                <h3>📝 Payment Form</h3>
+                <p>Complete payment form with amount and description inputs</p>
+                <div id="payment-form-demo"></div>
+            </div>
+            
+            <!-- Payment Modal Demo -->
+            <div class="demo-card">
+                <h3>🪟 Payment Modal</h3>
+                <p>Popup modal containing a payment form</p>
+                <button onclick="openPaymentModal()" style="
+                    background: linear-gradient(135deg, #FF6B35 0%, #F7931A 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 600;
+                ">Open Payment Modal</button>
+                <div class="log" id="modal-log">Click the button to test modal...</div>
+            </div>
+            
+            <!-- Status Badges Demo -->
+            <div class="demo-card">
+                <h3>🏷️ Status Badges</h3>
+                <p>Payment status indicators with appropriate styling</p>
+                <div class="status-grid">
+                    <div id="status-pending"></div>
+                    <div id="status-processing"></div>
+                    <div id="status-confirmed"></div>
+                    <div id="status-failed"></div>
+                    <div id="status-expired"></div>
+                </div>
+            </div>
+            
+            <!-- Amount Display Demo -->
+            <div class="demo-card">
+                <h3>💰 Amount Display</h3>
+                <p>Formatted display of payment amounts with USD conversion</p>
+                <div id="amount-small" style="margin: 10px 0;"></div>
+                <div id="amount-medium" style="margin: 10px 0;"></div>
+                <div id="amount-large" style="margin: 10px 0;"></div>
+            </div>
+            
+            <!-- QR Code Demo -->
+            <div class="demo-card">
+                <h3>📱 QR Code</h3>
+                <p>Payment QR code with address display</p>
+                <div id="qr-code-demo"></div>
+            </div>
+        </div>
+        
+        <div style="text-align: center; color: white; opacity: 0.8; margin-top: 40px;">
+            <p><strong>Note:</strong> This demo uses placeholder components. In production, connect to your sGate API.</p>
+            <p>Built with ❤️ for the Stacks ecosystem</p>
+        </div>
+    </div>
+
+    <!-- Mock sGate SDK for demo purposes -->
+    <script>
+        // Mock sGate SDK for demo purposes
+        window.sGate = {
+            PaymentButton: function(selector, config) {
+                const element = document.querySelector(selector);
+                const button = document.createElement('button');
+                button.innerHTML = `
+                    <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Pay ${config.amount_sats.toLocaleString()} sats
+                    </span>
+                `;
+                button.style.cssText = `
+                    background: linear-gradient(135deg, #FF6B35 0%, #F7931A 100%);
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-weight: 600;
+                    font-family: inherit;
+                    transition: all 0.2s ease;
+                `;
+                button.onmouseover = () => button.style.transform = 'translateY(-2px)';
+                button.onmouseout = () => button.style.transform = 'translateY(0)';
+                button.onclick = () => {
+                    logToDemo('button-log', `Payment button clicked! Amount: ${config.amount_sats} sats`);
+                    if (config.onSuccess) {
+                        setTimeout(() => {
+                            config.onSuccess({
+                                id: 'pi_demo_' + Date.now(),
+                                amount_sats: config.amount_sats,
+                                checkout_url: 'https://demo-checkout.sgate.dev'
+                            });
+                        }, 1000);
+                    }
+                };
+                element.appendChild(button);
+                return { destroy: () => button.remove() };
+            },
+            
+            PaymentForm: function(selector, config) {
+                const element = document.querySelector(selector);
+                const form = document.createElement('form');
+                form.innerHTML = `
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #333;">
+                            Amount (sats)
+                        </label>
+                        <input type="number" value="50000" style="
+                            width: 100%; 
+                            padding: 12px; 
+                            border: 1px solid #ddd; 
+                            border-radius: 6px;
+                            font-size: 16px;
+                            box-sizing: border-box;
+                        " />
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 4px; color: #333;">
+                            Description
+                        </label>
+                        <input type="text" placeholder="Payment description" style="
+                            width: 100%; 
+                            padding: 12px; 
+                            border: 1px solid #ddd; 
+                            border-radius: 6px;
+                            font-size: 16px;
+                            box-sizing: border-box;
+                        " />
+                    </div>
+                    <button type="submit" style="
+                        width: 100%;
+                        background: linear-gradient(135deg, #FF6B35 0%, #F7931A 100%);
+                        color: white;
+                        border: none;
+                        padding: 14px;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 16px;
+                    ">Create Payment</button>
+                `;
+                form.onsubmit = (e) => {
+                    e.preventDefault();
+                    logToDemo('form-log', 'Payment form submitted!');
+                    if (config.onSuccess) {
+                        config.onSuccess({ id: 'pi_form_demo', checkout_url: '#' });
+                    }
+                };
+                element.appendChild(form);
+                return { destroy: () => form.remove() };
+            },
+            
+            StatusBadge: function(selector, config) {
+                const element = document.querySelector(selector);
+                const colors = {
+                    pending: { bg: '#FEF3C7', color: '#D97706', text: 'Awaiting Payment' },
+                    processing: { bg: '#DBEAFE', color: '#2563EB', text: 'Processing...' },
+                    confirmed: { bg: '#D1FAE5', color: '#059669', text: 'Confirmed ✓' },
+                    failed: { bg: '#FEE2E2', color: '#DC2626', text: 'Failed ✗' },
+                    expired: { bg: '#F3F4F6', color: '#6B7280', text: 'Expired ⏰' }
+                };
+                const style = colors[config.status];
+                element.innerHTML = `
+                    <div style="
+                        background: ${style.bg};
+                        color: ${style.color};
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        font-weight: 600;
+                        font-size: 14px;
+                        text-align: center;
+                        border: 1px solid ${style.color}40;
+                    ">${style.text}</div>
+                `;
+                return { destroy: () => element.innerHTML = '' };
+            },
+            
+            AmountDisplay: function(selector, config) {
+                const element = document.querySelector(selector);
+                const sizes = {
+                    small: { primary: '18px', secondary: '14px' },
+                    medium: { primary: '24px', secondary: '16px' },
+                    large: { primary: '32px', secondary: '20px' }
+                };
+                const size = sizes[config.size];
+                const usd = ((config.amount_sats / 100000000) * 45000).toFixed(2);
+                element.innerHTML = `
+                    <div style="text-align: center;">
+                        <div style="font-size: ${size.primary}; font-weight: bold; color: #333; margin-bottom: 4px;">
+                            ${config.amount_sats.toLocaleString()} sats
+                        </div>
+                        <div style="font-size: ${size.secondary}; color: #666;">
+                            ≈ $${usd} USD
+                        </div>
+                    </div>
+                `;
+                return { destroy: () => element.innerHTML = '' };
+            },
+            
+            QRCode: function(selector, config) {
+                const element = document.querySelector(selector);
+                element.innerHTML = `
+                    <div style="
+                        background: white;
+                        border: 1px solid #ddd;
+                        border-radius: 12px;
+                        padding: 16px;
+                        text-align: center;
+                        max-width: ${config.size + 32}px;
+                    ">
+                        <div style="
+                            width: ${config.size}px;
+                            height: ${config.size}px;
+                            background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+                                        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+                                        linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+                                        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+                            background-size: 20px 20px;
+                            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin: 0 auto 12px;
+                            border-radius: 8px;
+                            color: #666;
+                            font-weight: 600;
+                            flex-direction: column;
+                        ">
+                            <div style="font-size: 24px; margin-bottom: 8px;">📱</div>
+                            <div>QR Code</div>
+                            <div style="font-size: 12px; margin-top: 4px;">Scan to pay</div>
+                        </div>
+                        <div style="
+                            font-family: monospace;
+                            font-size: 12px;
+                            color: #333;
+                            word-break: break-all;
+                            background: #f8f9fa;
+                            padding: 8px;
+                            border-radius: 6px;
+                            margin-top: 8px;
+                        ">${config.value}</div>
+                    </div>
+                `;
+                return { destroy: () => element.innerHTML = '' };
+            }
+        };
+
+        // Demo state
+        let currentTheme = 'light';
+        let components = [];
+
+        function logToDemo(elementId, message) {
+            const logElement = document.getElementById(elementId);
+            if (logElement) {
+                logElement.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+        }
+
+        function setTheme(theme) {
+            currentTheme = theme;
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            initializeComponents();
+        }
+
+        function openPaymentModal() {
+            logToDemo('modal-log', 'Payment modal would open here');
+            // In real implementation, this would open the actual modal
+            alert('Payment modal would open here! (This is a demo)');
+        }
+
+        function initializeComponents() {
+            // Clear existing components
+            components.forEach(comp => comp.destroy && comp.destroy());
+            components = [];
+
+            // Payment Button
+            components.push(sGate.PaymentButton('#payment-button-demo', {
+                amount_sats: 100000,
+                theme: currentTheme,
+                onSuccess: (paymentIntent) => {
+                    logToDemo('button-log', `Success! Payment ID: ${paymentIntent.id}`);
+                },
+                onError: (error) => {
+                    logToDemo('button-log', `Error: ${error.message}`);
+                }
+            }));
+
+            // Payment Form
+            components.push(sGate.PaymentForm('#payment-form-demo', {
+                theme: currentTheme,
+                onSuccess: (paymentIntent) => {
+                    alert('Payment form submitted successfully!');
+                }
+            }));
+
+            // Status Badges
+            const statuses = ['pending', 'processing', 'confirmed', 'failed', 'expired'];
+            statuses.forEach(status => {
+                components.push(sGate.StatusBadge(`#status-${status}`, {
+                    status: status,
+                    theme: currentTheme
+                }));
+            });
+
+            // Amount Displays
+            components.push(sGate.AmountDisplay('#amount-small', {
+                amount_sats: 50000,
+                size: 'small',
+                theme: currentTheme
+            }));
+            
+            components.push(sGate.AmountDisplay('#amount-medium', {
+                amount_sats: 150000,
+                size: 'medium',
+                theme: currentTheme
+            }));
+            
+            components.push(sGate.AmountDisplay('#amount-large', {
+                amount_sats: 500000,
+                size: 'large',
+                theme: currentTheme
+            }));
+
+            // QR Code
+            components.push(sGate.QRCode('#qr-code-demo', {
+                value: 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM',
+                size: 180,
+                theme: currentTheme,
+                includeText: true
+            }));
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initializeComponents);
+    </script>
+</body>
+</html>
