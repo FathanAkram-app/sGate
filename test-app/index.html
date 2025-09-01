@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sGate Test App - Payment Gateway Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sgate-blue': '#1e40af',
+                        'sgate-orange': '#f97316'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-sgate-blue to-blue-900 p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <div class="flex items-center justify-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-sgate-orange rounded-xl flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                        <line x1="12" x2="12" y1="2" y2="22"></line>
+                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                    </svg>
+                </div>
+                <h1 class="text-4xl font-bold text-white">sGate Test App</h1>
+            </div>
+            <p class="text-xl text-blue-200">
+                Test the sGate Payment Gateway Integration
+            </p>
+        </div>
+
+        <!-- Test Cards Grid -->
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            
+            <!-- Simple Payment Button Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    💳 Simple Payment Button
+                </h3>
+                <p class="text-blue-200 text-sm mb-4">
+                    Basic payment button for fixed amount
+                </p>
+                <div id="simple-payment-btn" class="mb-3"></div>
+                <div class="text-xs text-blue-300">
+                    Amount: 25,000 sats
+                </div>
+            </div>
+
+            <!-- Payment Form Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    📝 Payment Form
+                </h3>
+                <p class="text-blue-200 text-sm mb-4">
+                    Form with custom amount input
+                </p>
+                <div id="payment-form" class="mb-3"></div>
+            </div>
+
+            <!-- Payment Modal Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    🪟 Payment Modal
+                </h3>
+                <p class="text-blue-200 text-sm mb-4">
+                    Modal popup for seamless payments
+                </p>
+                <button id="modal-trigger-btn" class="w-full px-4 py-2 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors">
+                    Open Payment Modal
+                </button>
+                <div class="text-xs text-blue-300 mt-2">
+                    Amount: 75,000 sats
+                </div>
+            </div>
+
+            <!-- Donation Widget Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    💝 Donation Widget
+                </h3>
+                <p class="text-blue-200 text-sm mb-4">
+                    Flexible donation amounts
+                </p>
+                <div id="donation-form" class="mb-3"></div>
+            </div>
+
+            <!-- E-commerce Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    🛒 E-commerce Item
+                </h3>
+                <p class="text-blue-200 text-sm mb-2">
+                    Premium Coffee Blend
+                </p>
+                <p class="text-white font-semibold mb-4">
+                    50,000 sats
+                </p>
+                <div id="ecommerce-btn" class="mb-3"></div>
+            </div>
+
+            <!-- Subscription Test -->
+            <div class="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h3 class="text-lg font-semibold text-white mb-3">
+                    🔒 Premium Subscription
+                </h3>
+                <p class="text-blue-200 text-sm mb-2">
+                    Monthly Premium Access
+                </p>
+                <p class="text-white font-semibold mb-4">
+                    150,000 sats/month
+                </p>
+                <div id="subscription-btn" class="mb-3"></div>
+            </div>
+        </div>
+
+        <!-- Direct API Test -->
+        <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 mb-8">
+            <h3 class="text-xl font-semibold text-white mb-4">
+                🔧 Direct API Test
+            </h3>
+            <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">
+                        Amount (sats)
+                    </label>
+                    <input 
+                        type="number" 
+                        id="api-amount" 
+                        value="100000"
+                        class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-sgate-orange"
+                        placeholder="Enter amount"
+                    />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">
+                        Description
+                    </label>
+                    <input 
+                        type="text" 
+                        id="api-description" 
+                        value="API Test Payment"
+                        class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-sgate-orange"
+                        placeholder="Payment description"
+                    />
+                </div>
+            </div>
+            <div class="mt-4 flex gap-4">
+                <button 
+                    id="create-payment-btn" 
+                    class="px-6 py-2 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors"
+                >
+                    Create Payment Intent
+                </button>
+                <button 
+                    id="retrieve-payment-btn" 
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    disabled
+                >
+                    Retrieve Payment
+                </button>
+            </div>
+            <div id="api-result" class="mt-4 hidden">
+                <h4 class="text-sm font-medium text-blue-200 mb-2">API Response:</h4>
+                <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg text-xs overflow-x-auto" id="api-response"></pre>
+            </div>
+        </div>
+
+        <!-- Connection Test -->
+        <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 mb-8">
+            <h3 class="text-xl font-semibold text-white mb-4">
+                🔌 API Connection Test
+            </h3>
+            <div class="flex gap-4 mb-4">
+                <button 
+                    id="test-connection-btn" 
+                    class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                    Test API Connection
+                </button>
+                <div id="connection-status" class="flex items-center text-sm">
+                    <span class="text-blue-200">Click to test connection...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+            <h3 class="text-xl font-semibold text-white mb-4">
+                📊 Event Log
+            </h3>
+            <div id="event-log" class="bg-gray-900 text-gray-100 p-4 rounded-lg max-h-64 overflow-y-auto text-sm">
+                <div class="text-blue-300">sGate Test App initialized...</div>
+            </div>
+            <button 
+                id="clear-log-btn" 
+                class="mt-3 px-4 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors"
+            >
+                Clear Log
+            </button>
+        </div>
+    </div>
+
+    <!-- SDK Integration Script -->
+    <script>
+        // Mock sGate SDK for testing (replace with actual SDK import in production)
+        const sGate = {
+            // API Client
+            client: null,
+            
+            // Initialize with demo API key
+            init: function(config) {
+                this.client = {
+                    apiKey: config.apiKey,
+                    apiBaseUrl: config.apiBaseUrl || 'http://localhost:4003'
+                };
+                this.log('sGate SDK initialized', 'success');
+            },
+
+            // Create Payment Intent
+            createPaymentIntent: async function(data) {
+                try {
+                    const response = await fetch(`${this.client.apiBaseUrl}/v1/public/demo/payment_intents`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const paymentIntent = await response.json();
+                    this.log(`Payment intent created: ${paymentIntent.id}`, 'success');
+                    return paymentIntent;
+                } catch (error) {
+                    if (error.message.includes('NetworkError') || error.message.includes('fetch')) {
+                        this.log('❌ Cannot connect to sGate API. Make sure the API server is running on http://localhost:4003', 'error');
+                    } else {
+                        this.log(`Error creating payment: ${error.message}`, 'error');
+                    }
+                    throw error;
+                }
+            },
+
+            // Retrieve Payment Intent
+            retrievePaymentIntent: async function(id) {
+                try {
+                    const response = await fetch(`${this.client.apiBaseUrl}/v1/public/payment_intents/${id}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const paymentIntent = await response.json();
+                    this.log(`Payment intent retrieved: ${id}`, 'success');
+                    return paymentIntent;
+                } catch (error) {
+                    this.log(`Error retrieving payment: ${error.message}`, 'error');
+                    throw error;
+                }
+            },
+
+            // Payment Button Component
+            PaymentButton: function(selector, config) {
+                const element = document.querySelector(selector);
+                if (!element) {
+                    this.log(`Element not found: ${selector}`, 'error');
+                    return;
+                }
+
+                const button = document.createElement('button');
+                button.className = 'w-full px-4 py-2 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold';
+                button.innerHTML = `💰 Pay ${config.amount_sats.toLocaleString()} sats`;
+                
+                button.onclick = async () => {
+                    button.disabled = true;
+                    button.innerHTML = 'Creating payment...';
+                    
+                    try {
+                        const paymentIntent = await this.createPaymentIntent({
+                            amount_sats: config.amount_sats,
+                            currency: 'sbtc',
+                            description: config.description || 'Payment',
+                            success_url: config.success_url || window.location.origin + '/success',
+                            cancel_url: config.cancel_url || window.location.origin,
+                            expires_in: 1800
+                        });
+
+                        // Open checkout in new window
+                        window.open(paymentIntent.checkout_url, '_blank');
+                        
+                        if (config.onSuccess) {
+                            config.onSuccess(paymentIntent);
+                        }
+                        
+                        this.log(`Payment button clicked: ${paymentIntent.checkout_url}`, 'info');
+                        
+                    } catch (error) {
+                        if (config.onError) {
+                            config.onError(error);
+                        }
+                    } finally {
+                        button.disabled = false;
+                        button.innerHTML = `💰 Pay ${config.amount_sats.toLocaleString()} sats`;
+                    }
+                };
+
+                element.appendChild(button);
+                this.log(`Payment button created: ${selector}`, 'info');
+                return button;
+            },
+
+            // Payment Form Component
+            PaymentForm: function(selector, config) {
+                const element = document.querySelector(selector);
+                if (!element) {
+                    this.log(`Element not found: ${selector}`, 'error');
+                    return;
+                }
+
+                const form = document.createElement('div');
+                form.innerHTML = `
+                    <div class="space-y-3">
+                        <input 
+                            type="number" 
+                            placeholder="Amount (sats)" 
+                            value="${config.defaultAmount || 50000}"
+                            class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-sgate-orange text-sm"
+                        />
+                        <input 
+                            type="text" 
+                            placeholder="Description (optional)" 
+                            value="${config.description || ''}"
+                            class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-sgate-orange text-sm"
+                        />
+                        <button class="w-full px-4 py-2 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold text-sm">
+                            Create Payment
+                        </button>
+                    </div>
+                `;
+
+                const button = form.querySelector('button');
+                const amountInput = form.querySelector('input[type="number"]');
+                const descriptionInput = form.querySelector('input[type="text"]');
+
+                button.onclick = async () => {
+                    const amount = parseInt(amountInput.value);
+                    const description = descriptionInput.value || 'Custom Payment';
+
+                    if (!amount || amount < 1000) {
+                        this.log('Invalid amount (minimum 1000 sats)', 'error');
+                        return;
+                    }
+
+                    button.disabled = true;
+                    button.innerHTML = 'Creating...';
+
+                    try {
+                        const paymentIntent = await this.createPaymentIntent({
+                            amount_sats: amount,
+                            currency: 'sbtc',
+                            description: description,
+                            success_url: config.success_url || window.location.origin + '/success',
+                            cancel_url: config.cancel_url || window.location.origin,
+                            expires_in: 1800
+                        });
+
+                        window.open(paymentIntent.checkout_url, '_blank');
+                        
+                        if (config.onPaymentCreate) {
+                            config.onPaymentCreate(paymentIntent);
+                        }
+
+                    } catch (error) {
+                        this.log(`Form payment error: ${error.message}`, 'error');
+                    } finally {
+                        button.disabled = false;
+                        button.innerHTML = 'Create Payment';
+                    }
+                };
+
+                element.appendChild(form);
+                this.log(`Payment form created: ${selector}`, 'info');
+                return form;
+            },
+
+            // Payment Modal Component
+            PaymentModal: function(config) {
+                this.log('Payment modal created', 'info');
+                
+                return {
+                    show: async () => {
+                        try {
+                            const paymentIntent = await sGate.createPaymentIntent({
+                                amount_sats: config.amount_sats,
+                                currency: 'sbtc',
+                                description: config.description || 'Modal Payment',
+                                success_url: config.success_url || window.location.origin + '/success',
+                                cancel_url: config.cancel_url || window.location.origin,
+                                expires_in: 1800
+                            });
+
+                            // For demo, just open in new tab (in real implementation this would be a modal)
+                            const newWindow = window.open(paymentIntent.checkout_url, '_blank');
+                            
+                            if (config.onSuccess) {
+                                config.onSuccess(paymentIntent);
+                            }
+
+                            sGate.log(`Modal payment opened: ${paymentIntent.id}`, 'info');
+                            
+                        } catch (error) {
+                            if (config.onError) {
+                                config.onError(error);
+                            }
+                        }
+                    }
+                };
+            },
+
+            // Logging utility
+            log: function(message, type = 'info') {
+                const logElement = document.getElementById('event-log');
+                if (!logElement) return;
+
+                const timestamp = new Date().toLocaleTimeString();
+                const colors = {
+                    info: 'text-blue-300',
+                    success: 'text-green-300',
+                    error: 'text-red-300',
+                    warning: 'text-yellow-300'
+                };
+
+                const logEntry = document.createElement('div');
+                logEntry.className = `${colors[type]} text-xs mb-1`;
+                logEntry.innerHTML = `<span class="text-gray-400">[${timestamp}]</span> ${message}`;
+                
+                logElement.appendChild(logEntry);
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+        };
+
+        // Initialize Test App
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize sGate SDK
+            sGate.init({
+                apiKey: 'demo-key', // Using demo endpoint
+                apiBaseUrl: 'http://localhost:4003'
+            });
+
+            // Create payment components
+            sGate.PaymentButton('#simple-payment-btn', {
+                amount_sats: 25000,
+                description: 'Simple Payment Test',
+                onSuccess: (pi) => sGate.log(`Simple payment created: ${pi.id}`, 'success'),
+                onError: (err) => sGate.log(`Simple payment error: ${err.message}`, 'error')
+            });
+
+            sGate.PaymentForm('#payment-form', {
+                defaultAmount: 50000,
+                description: 'Custom Form Payment',
+                onPaymentCreate: (pi) => sGate.log(`Form payment created: ${pi.id}`, 'success')
+            });
+
+            const paymentModal = sGate.PaymentModal({
+                amount_sats: 75000,
+                description: 'Modal Payment Test',
+                onSuccess: (pi) => sGate.log(`Modal payment created: ${pi.id}`, 'success'),
+                onError: (err) => sGate.log(`Modal payment error: ${err.message}`, 'error')
+            });
+
+            document.getElementById('modal-trigger-btn').onclick = () => {
+                paymentModal.show();
+            };
+
+            sGate.PaymentForm('#donation-form', {
+                defaultAmount: 10000,
+                description: 'Test Donation',
+                onPaymentCreate: (pi) => sGate.log(`Donation created: ${pi.id}`, 'success')
+            });
+
+            sGate.PaymentButton('#ecommerce-btn', {
+                amount_sats: 50000,
+                description: 'Premium Coffee Blend - E-commerce Test',
+                onSuccess: (pi) => sGate.log(`E-commerce payment: ${pi.id}`, 'success')
+            });
+
+            sGate.PaymentButton('#subscription-btn', {
+                amount_sats: 150000,
+                description: 'Premium Subscription - Monthly Access',
+                onSuccess: (pi) => sGate.log(`Subscription payment: ${pi.id}`, 'success')
+            });
+
+            // Direct API test handlers
+            let lastPaymentId = null;
+
+            document.getElementById('create-payment-btn').onclick = async () => {
+                const amount = parseInt(document.getElementById('api-amount').value);
+                const description = document.getElementById('api-description').value;
+                const resultDiv = document.getElementById('api-result');
+                const responseDiv = document.getElementById('api-response');
+
+                if (!amount || amount < 1000) {
+                    sGate.log('Invalid amount for API test', 'error');
+                    return;
+                }
+
+                try {
+                    const paymentIntent = await sGate.createPaymentIntent({
+                        amount_sats: amount,
+                        currency: 'sbtc',
+                        description: description,
+                        success_url: window.location.origin + '/success',
+                        cancel_url: window.location.origin,
+                        expires_in: 1800
+                    });
+
+                    lastPaymentId = paymentIntent.id;
+                    document.getElementById('retrieve-payment-btn').disabled = false;
+                    
+                    responseDiv.textContent = JSON.stringify(paymentIntent, null, 2);
+                    resultDiv.classList.remove('hidden');
+
+                } catch (error) {
+                    responseDiv.textContent = `Error: ${error.message}`;
+                    resultDiv.classList.remove('hidden');
+                }
+            };
+
+            document.getElementById('retrieve-payment-btn').onclick = async () => {
+                if (!lastPaymentId) return;
+
+                const responseDiv = document.getElementById('api-response');
+
+                try {
+                    const paymentIntent = await sGate.retrievePaymentIntent(lastPaymentId);
+                    responseDiv.textContent = JSON.stringify(paymentIntent, null, 2);
+
+                } catch (error) {
+                    responseDiv.textContent = `Error: ${error.message}`;
+                }
+            };
+
+            // Clear log button
+            document.getElementById('clear-log-btn').onclick = () => {
+                const logElement = document.getElementById('event-log');
+                logElement.innerHTML = '<div class="text-blue-300">Event log cleared...</div>';
+            };
+
+            // Connection test button
+            document.getElementById('test-connection-btn').onclick = async () => {
+                const statusDiv = document.getElementById('connection-status');
+                const btn = document.getElementById('test-connection-btn');
+                
+                btn.disabled = true;
+                btn.innerHTML = 'Testing...';
+                statusDiv.innerHTML = '<span class="text-yellow-300">⏳ Testing connection...</span>';
+
+                try {
+                    const response = await fetch(`${sGate.client.apiBaseUrl}/health`);
+                    if (response.ok) {
+                        const health = await response.json();
+                        statusDiv.innerHTML = '<span class="text-green-300">✅ API Connected</span>';
+                        sGate.log('API connection test successful', 'success');
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    statusDiv.innerHTML = '<span class="text-red-300">❌ API Not Available</span>';
+                    sGate.log(`API connection failed: ${error.message}`, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Test API Connection';
+                }
+            };
+
+            sGate.log('All test components initialized successfully!', 'success');
+        });
+    </script>
+</body>
+</html>

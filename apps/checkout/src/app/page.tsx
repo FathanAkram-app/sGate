@@ -28,11 +28,10 @@ export default function HomePage() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <a 
-                href="http://localhost:4001/docs" 
-                target="_blank"
+                href="/docs"
                 className="inline-flex items-center gap-2 px-8 py-4 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold"
               >
-                View API Docs
+                SDK Documentation
                 <ArrowRight className="w-5 h-5" />
               </a>
               <a 
@@ -213,8 +212,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a 
-              href="http://localhost:4001/docs" 
-              target="_blank"
+              href="/docs"
               className="inline-flex items-center gap-2 px-8 py-4 bg-sgate-orange text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold"
             >
               Get Started

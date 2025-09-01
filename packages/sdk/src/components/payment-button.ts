@@ -158,6 +158,7 @@ export class PaymentButton {
       const paymentIntentData: CreatePaymentIntentDto = {
         amount_sats: this.config.amount_sats,
         currency: this.config.currency || 'sbtc',
+        expires_in: 900, // 15 minutes default
         description: this.config.description,
         success_url: this.config.success_url,
         cancel_url: this.config.cancel_url,

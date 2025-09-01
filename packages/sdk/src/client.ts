@@ -47,4 +47,9 @@ export class SGateClient {
 
     return response.json();
   }
+
+  // Alias for retrievePaymentIntent to match the error message
+  async getPaymentIntent(id: string): Promise<PaymentIntentResponseDto> {
+    return this.retrievePaymentIntent(id);
+  }
 }

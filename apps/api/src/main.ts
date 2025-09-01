@@ -15,6 +15,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:3000',
+      'http://localhost:8080', // Test app
       configService.get<string>('urls.checkoutBase'),
     ],
     credentials: true,

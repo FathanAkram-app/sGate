@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "JavaScript SDK for sGate sBTC Payment Gateway",
   "license": "MIT",
+  "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",

@@ -28,6 +28,18 @@ export type {
   AmountDisplayOptions 
 } from './components/elements';
 
+// Import types for convenience functions
+import type { PaymentButtonConfig } from './components/payment-button';
+import type { PaymentFormConfig } from './components/payment-form';
+import type { PaymentModalConfig } from './components/payment-modal';
+import type { CheckoutWidgetConfig } from './checkout-widget';
+import type { QRCodeOptions, StatusBadgeOptions, AmountDisplayOptions } from './components/elements';
+import { PaymentButton } from './components/payment-button';
+import { PaymentForm } from './components/payment-form';
+import { PaymentModal } from './components/payment-modal';
+import { CheckoutWidget } from './checkout-widget';
+import { Elements } from './components/elements';
+
 // Convenience mounting functions
 export const sGate = {
   // Quick component creators
