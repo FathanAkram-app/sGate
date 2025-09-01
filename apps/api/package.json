@@ -2,6 +2,7 @@
   "name": "@sgate/api",
   "version": "0.1.0",
   "description": "sGate API - NestJS backend",
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

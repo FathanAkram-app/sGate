@@ -296,7 +296,7 @@ GATEWAY_ADDRESS=your-stacks-address
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 

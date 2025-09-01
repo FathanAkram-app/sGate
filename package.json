@@ -2,6 +2,7 @@
   "name": "sgate",
   "version": "0.1.0",
   "description": "sBTC Payment Gateway - Stripe-like MVP for Stacks testnet",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "npm run --workspaces --if-present dev",

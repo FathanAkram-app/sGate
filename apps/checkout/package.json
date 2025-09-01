@@ -2,6 +2,7 @@
   "name": "@sgate/checkout",
   "version": "0.1.0",
   "description": "sGate Hosted Checkout - Next.js frontend",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
