@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database with optimized configuration
   postgres:
     image: postgres:15-alpine
     container_name: sgate-postgres-prod
@@ -10,55 +10,132 @@ services:
       POSTGRES_DB: sgate_production
       POSTGRES_USER: sgate_prod
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf
-      - ./infra/postgresql/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./infra/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./infra/postgresql/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - postgres_logs:/var/log/postgresql
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     ports:
       - "5432:5432"
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sgate_prod -d sgate_production"]
-      interval: 30s
-      timeout: 10s
+      interval: 10s
+      timeout: 5s
       retries: 5
+      start_period: 30s
     networks:
       - sgate-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
-  # Redis for caching and session storage
+  # Redis for caching and rate limiting
   redis:
     image: redis:7-alpine
     container_name: sgate-redis-prod
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: |
+      sh -c '
+      mkdir -p /usr/local/etc/redis &&
+      echo "
+      # Redis Production Configuration
+      bind 0.0.0.0
+      port 6379
+      requirepass $$REDIS_PASSWORD
+      
+      # Memory management
+      maxmemory 1gb
+      maxmemory-policy allkeys-lru
+      
+      # Persistence
+      save 900 1
+      save 300 10
+      save 60 10000
+      
+      # Logging
+      loglevel notice
+      
+      # Security
+      protected-mode yes
+      
+      # Performance
+      tcp-keepalive 300
+      timeout 0
+      tcp-backlog 511
+      
+      # Slow log
+      slowlog-log-slower-than 10000
+      slowlog-max-len 128
+      " > /usr/local/etc/redis/redis.conf &&
+      redis-server /usr/local/etc/redis/redis.conf
+      '
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
+      - redis_logs:/var/log/redis
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
       retries: 5
     networks:
       - sgate-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
-  # API Service
+  # API Service with multiple replicas
   api:
     build:
       context: .
       dockerfile: ./apps/api/Dockerfile.production
-      args:
-        NODE_ENV: production
+      target: runtime
+    image: sgate/api:${VERSION:-latest}
     container_name: sgate-api-prod
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      DATABASE_URL: postgresql://sgate_prod:${DB_PASSWORD}@postgres:5432/sgate_production
+      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
+      API_KEY_SALT: ${API_KEY_SALT}
+      WEBHOOK_SIGNATURE_SALT: ${WEBHOOK_SIGNATURE_SALT}
+      JWT_SECRET: ${JWT_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+      RATE_LIMIT_ENABLED: "true"
+      ENABLE_METRICS: "true"
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      TRUST_PROXY: "1"
     env_file:
       - ./apps/api/.env.production
     ports:
       - "4000:4000"
+      - "9090:9090"  # Metrics port
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,15 +143,17 @@ services:
         condition: service_healthy
     volumes:
       - api_logs:/app/logs
+      - api_tmp:/app/tmp
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      test: ["CMD", "node", "/app/healthcheck.js"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 40s
+      retries: 3
+      start_period: 60s
     networks:
       - sgate-network
     deploy:
+      replicas: 3
       resources:
         limits:
           memory: 2G
@@ -82,6 +161,16 @@ services:
         reservations:
           memory: 1G
           cpus: '0.5'
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+        window: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
   # Checkout Frontend
   checkout:
@@ -90,50 +179,40 @@ services:
       dockerfile: ./apps/checkout/Dockerfile.production
       args:
         NODE_ENV: production
-        NEXT_PUBLIC_API_URL: https://api.sgate.com
+        NEXT_PUBLIC_API_URL: ${API_BASE_URL}
+    image: sgate/checkout:${VERSION:-latest}
     container_name: sgate-checkout-prod
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.sgate.com
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_BASE_URL}
     ports:
       - "3000:3000"
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
     networks:
       - sgate-network
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
-  # Dashboard Frontend
-  dashboard:
-    build:
-      context: .
-      dockerfile: ./apps/dashboard/Dockerfile.production
-      args:
-        NODE_ENV: production
-        NEXT_PUBLIC_API_URL: https://api.sgate.com
-    container_name: sgate-dashboard-prod
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.sgate.com
-    ports:
-      - "3001:3001"
-    depends_on:
-      - api
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - sgate-network
-
-  # Nginx Reverse Proxy
+  # Nginx Reverse Proxy with SSL termination
   nginx:
     image: nginx:alpine
     container_name: sgate-nginx-prod
@@ -142,30 +221,35 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./infra/ssl:/etc/ssl/certs:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - api
       - checkout
-      - dashboard
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - sgate-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
 
-  # Log aggregator
-  fluentd:
-    image: fluent/fluentd:v1.16-debian-1
-    container_name: sgate-fluentd-prod
-    restart: unless-stopped
-    volumes:
-      - ./infra/fluentd:/fluentd/etc:ro
-      - api_logs:/var/log/api:ro
-      - nginx_logs:/var/log/nginx:ro
-    networks:
-      - sgate-network
-
-  # Monitoring
+  # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
     container_name: sgate-prometheus-prod
@@ -173,17 +257,42 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus_data:/prometheus
     networks:
       - sgate-network
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
+  # Grafana for monitoring dashboards
   grafana:
     image: grafana/grafana:latest
     container_name: sgate-grafana-prod
@@ -191,21 +300,113 @@ services:
     ports:
       - "3002:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://monitoring.sgate.com
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: ${SMTP_HOST}
+      GF_SMTP_USER: ${SMTP_USER}
+      GF_SMTP_PASSWORD: ${SMTP_PASSWORD}
+      GF_SMTP_FROM_ADDRESS: monitoring@sgate.com
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     networks:
       - sgate-network
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # Log aggregation with Fluentd
+  fluentd:
+    build:
+      context: ./infra/fluentd
+      dockerfile: Dockerfile
+    image: sgate/fluentd:${VERSION:-latest}
+    container_name: sgate-fluentd-prod
+    restart: unless-stopped
+    volumes:
+      - ./infra/fluentd/fluent.conf:/fluentd/etc/fluent.conf:ro
+      - api_logs:/var/log/api:ro
+      - nginx_logs:/var/log/nginx:ro
+      - postgres_logs:/var/log/postgres:ro
+      - redis_logs:/var/log/redis:ro
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    networks:
+      - sgate-network
+    environment:
+      ELASTICSEARCH_HOST: ${ELASTICSEARCH_HOST}
+      ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT}
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: sgate-backup-prod
+    restart: "no"
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - sgate-network
+    depends_on:
+      - postgres
+    profiles:
+      - backup
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
 
 volumes:
   postgres_data:
     driver: local
+  postgres_logs:
+    driver: local
+  postgres_backups:
+    driver: local
   redis_data:
     driver: local
+  redis_logs:
+    driver: local
   api_logs:
+    driver: local
+  api_tmp:
     driver: local
   nginx_logs:
     driver: local
@@ -218,5 +419,15 @@ networks:
   sgate-network:
     driver: bridge
     ipam:
+      driver: default
       config:
         - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: sgate-br0
+      com.docker.network.driver.mtu: 1500
+
+# Production deployment commands:
+# 1. docker-compose -f docker-compose.production.yml pull
+# 2. docker-compose -f docker-compose.production.yml up -d
+# 3. docker-compose -f docker-compose.production.yml logs -f api
+# 4. docker-compose -f docker-compose.production.yml exec api npm run migration:run

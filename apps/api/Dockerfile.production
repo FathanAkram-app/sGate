@@ -1,67 +1,113 @@
-# Multi-stage build for production optimization
+# Multi-stage Docker build for production
 FROM node:18-alpine AS base
 
-# Install security updates and required packages
+# Install security updates and required tools
 RUN apk update && apk upgrade && \
-    apk add --no-cache curl dumb-init && \
+    apk add --no-cache \
+    dumb-init \
+    curl \
+    tini && \
     rm -rf /var/cache/apk/*
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S sgate -u 1001
+    adduser -S sgate -u 1001 -G nodejs
 
+# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Install dependencies stage
+FROM base AS deps
 COPY package*.json ./
-COPY packages/shared/package*.json ./packages/shared/
 COPY apps/api/package*.json ./apps/api/
+COPY packages/*/package*.json ./packages/*/
 
-# Install dependencies
-RUN npm ci --only=production --no-audit --no-fund
+# Install dependencies (including dev dependencies for build)
+RUN npm ci --include=dev && npm cache clean --force
 
 # Build stage
 FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# Install all dependencies including dev dependencies
-RUN npm ci --no-audit --no-fund
+# Build the application
+RUN npm run build
 
-# Copy source code
-COPY packages/ ./packages/
-COPY apps/api/ ./apps/api/
-COPY tsconfig*.json ./
-
-# Build shared package first
-RUN cd packages/shared && npm run build
-
-# Build API
-RUN cd apps/api && npm run build
+# Remove dev dependencies and rebuild for production
+RUN npm ci --only=production && npm cache clean --force
 
 # Production stage
-FROM base AS production
+FROM base AS runtime
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=2048 --enable-source-maps"
+ENV UV_THREADPOOL_SIZE=4
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/tmp && \
+    chown -R sgate:nodejs /app
 
 # Copy built application
-COPY --from=builder --chown=sgate:nodejs /app/apps/api/dist ./apps/api/dist
-COPY --from=builder --chown=sgate:nodejs /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder --chown=sgate:nodejs /app/dist ./dist
 COPY --from=builder --chown=sgate:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=sgate:nodejs /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=builder --chown=sgate:nodejs /app/package*.json ./
 
-# Copy production config
-COPY --chown=sgate:nodejs apps/api/.env.production ./apps/api/.env.production
+# Copy health check script
+COPY --chown=sgate:nodejs <<EOF /app/healthcheck.js
+const http = require('http');
 
-# Create logs directory
-RUN mkdir -p /app/logs && chown sgate:nodejs /app/logs
+const options = {
+  hostname: 'localhost',
+  port: process.env.PORT || 4000,
+  path: '/health/live',
+  method: 'GET',
+  timeout: 3000,
+};
+
+const req = http.request(options, (res) => {
+  if (res.statusCode === 200) {
+    process.exit(0);
+  } else {
+    console.error(\`Health check failed with status: \${res.statusCode}\`);
+    process.exit(1);
+  }
+});
+
+req.on('error', (err) => {
+  console.error('Health check error:', err.message);
+  process.exit(1);
+});
+
+req.on('timeout', () => {
+  console.error('Health check timeout');
+  req.destroy();
+  process.exit(1);
+});
+
+req.end();
+EOF
 
 # Switch to non-root user
 USER sgate
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:4000/health || exit 1
-
 # Expose port
 EXPOSE 4000
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "apps/api/dist/main.js"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node /app/healthcheck.js
+
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["tini", "--"]
+
+# Start the application
+CMD ["node", "dist/main.js"]
+
+# Labels for metadata
+LABEL maintainer="sgate-team@example.com"
+LABEL version="1.0.0"
+LABEL description="sGate sBTC Payment Gateway API"
+LABEL org.opencontainers.image.source="https://github.com/sgate/sgate"
+LABEL org.opencontainers.image.description="Production-ready sBTC payment gateway API"
+LABEL org.opencontainers.image.licenses="MIT"
