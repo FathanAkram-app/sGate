@@ -28,7 +28,7 @@ export class PaymentButton {
       currency: 'sbtc',
       theme: 'light',
       size: 'medium',
-      apiBaseUrl: 'http://localhost:4001',
+      apiBaseUrl: 'http://localhost:4000',
       ...config,
     };
     

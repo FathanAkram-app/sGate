@@ -1,0 +1,68 @@
+# Source files
+src/
+*.ts
+!*.d.ts
+
+# Development files
+.github/
+.vscode/
+.idea/
+*.tgz
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+test/
+tests/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+coverage/
+.nyc_output/
+
+# Development dependencies
+node_modules/
+.npm/
+.eslintcache
+.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build tools
+rollup.config.js
+tsconfig.json
+tsconfig.build.json
+.eslintrc*
+.prettierrc*
+jest.config.js
+
+# Documentation that's not needed in npm package
+docs/
+examples/
+infra/
+apps/

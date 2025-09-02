@@ -1,0 +1,67 @@
+# Multi-stage build for production optimization
+FROM node:18-alpine AS base
+
+# Install security updates and required packages
+RUN apk update && apk upgrade && \
+    apk add --no-cache curl dumb-init && \
+    rm -rf /var/cache/apk/*
+
+# Create app user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S sgate -u 1001
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/api/package*.json ./apps/api/
+
+# Install dependencies
+RUN npm ci --only=production --no-audit --no-fund
+
+# Build stage
+FROM base AS builder
+
+# Install all dependencies including dev dependencies
+RUN npm ci --no-audit --no-fund
+
+# Copy source code
+COPY packages/ ./packages/
+COPY apps/api/ ./apps/api/
+COPY tsconfig*.json ./
+
+# Build shared package first
+RUN cd packages/shared && npm run build
+
+# Build API
+RUN cd apps/api && npm run build
+
+# Production stage
+FROM base AS production
+
+# Copy built application
+COPY --from=builder --chown=sgate:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=sgate:nodejs /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder --chown=sgate:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=sgate:nodejs /app/packages/shared/node_modules ./packages/shared/node_modules
+
+# Copy production config
+COPY --chown=sgate:nodejs apps/api/.env.production ./apps/api/.env.production
+
+# Create logs directory
+RUN mkdir -p /app/logs && chown sgate:nodejs /app/logs
+
+# Switch to non-root user
+USER sgate
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:4000/health || exit 1
+
+# Expose port
+EXPOSE 4000
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "apps/api/dist/main.js"]

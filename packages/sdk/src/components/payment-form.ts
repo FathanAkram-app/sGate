@@ -30,7 +30,7 @@ export class PaymentForm {
       showAmountField: true,
       showDescriptionField: true,
       submitButtonText: 'Create Payment',
-      apiBaseUrl: 'http://localhost:4001',
+      apiBaseUrl: 'http://localhost:4000',
       ...config,
     };
     

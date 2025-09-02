@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -16,6 +16,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WatcherModule } from './modules/watcher/watcher.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PublicModule } from './modules/public/public.module';
+import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
 
 @Module({
   imports: [
@@ -48,4 +49,12 @@ import { PublicModule } from './modules/public/public.module';
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Apply rate limiting to all routes except health check
+    consumer
+      .apply(RateLimitMiddleware)
+      .exclude('health')
+      .forRoutes('*');
+  }
+}

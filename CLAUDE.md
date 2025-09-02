@@ -127,19 +127,19 @@ Key settings:
 1. Ensure Docker is running
 2. Run `node start.js` from project root, OR manually start:
    - PostgreSQL: `cd infra && docker compose up -d postgres`
-   - API: `cd apps/api && npm run start:prod` (port 4003)
+   - API: `cd apps/api && npm run start:prod` (port 4000)
    - Checkout: `cd apps/checkout && npm run dev` (port 3000)
 3. Services will be available at:
-   - API: http://localhost:4003 (with Swagger docs at /docs)
+   - API: http://localhost:4000 (with Swagger docs at /docs)
    - Checkout: http://localhost:3000
    - PostgreSQL on port 5432
 
-**Note**: If ports 4000-4002 are in use, create `apps/api/.env` with `PORT=4003`
+**Note**: If ports 4000-4000 are in use, create `apps/api/.env` with `PORT=4000`
 
 ### Working with Payment Intents
 ```bash
 # Create test payment intent
-curl -X POST http://localhost:4001/v1/payment_intents \
+curl -X POST http://localhost:4000/v1/payment_intents \
   -H "Authorization: Bearer <API_KEY_FROM_SEED>" \
   -H "Content-Type: application/json" \
   -d '{"amount_sats": 100000, "currency": "sbtc", "description": "Test"}'

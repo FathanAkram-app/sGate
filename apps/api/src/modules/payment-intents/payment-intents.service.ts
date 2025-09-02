@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, Between, FindManyOptions } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { PaymentIntentEntity } from '../../entities';
 import {
@@ -105,6 +105,66 @@ export class PaymentIntentsService {
       where: { id },
       relations: ['merchant'],
     });
+  }
+
+  async findAll(merchantId: string, filters: {
+    limit: number;
+    page: number;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+  }) {
+    const { limit, page, status, fromDate, toDate } = filters;
+    const skip = (page - 1) * limit;
+
+    const where: any = { merchantId };
+
+    // Add status filter
+    if (status) {
+      where.status = status;
+    }
+
+    // Add date range filter
+    if (fromDate && toDate) {
+      where.createdAt = Between(new Date(fromDate), new Date(toDate));
+    } else if (fromDate) {
+      where.createdAt = LessThan(new Date(fromDate));
+    } else if (toDate) {
+      where.createdAt = LessThan(new Date(toDate));
+    }
+
+    const [paymentIntents, total] = await this.paymentIntentRepository.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    const checkoutBaseUrl = this.configService.get<string>('urls.checkoutBase');
+
+    const data = paymentIntents.map(pi => ({
+      id: pi.id,
+      client_secret: pi.clientSecret,
+      pay_address: pi.payAddress,
+      amount_sats: parseInt(pi.amountSats),
+      currency: pi.currency as 'sbtc',
+      status: pi.status,
+      description: pi.description,
+      metadata: pi.metadata,
+      expires_at: pi.expiresAt.toISOString(),
+      checkout_url: `${checkoutBaseUrl}/pi/${pi.id}`,
+      success_url: pi.successUrl,
+      cancel_url: pi.cancelUrl,
+      created_at: pi.createdAt.toISOString(),
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      limit,
+    };
   }
 
   async findByMemoHex(memoHex: string): Promise<PaymentIntentEntity | null> {

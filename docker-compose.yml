@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: sgate
+      POSTGRES_PASSWORD: sgate
+      POSTGRES_DB: sgate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sgate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sgate-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - sgate-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=4000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=sgate
+      - DB_PASSWORD=sgate
+      - DB_NAME=sgate
+      - DATABASE_URL=postgres://sgate:sgate@postgres:5432/sgate
+      - STACKS_NETWORK=testnet
+      - HIRO_API_BASE=https://api.testnet.hiro.so
+      - SBTC_ASSET_IDENTIFIER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sbtc-token::sbtc
+      - GATEWAY_ADDRESS=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
+      - JWT_SECRET=dev-sgate-jwt-secret-change-in-production
+      - WEBHOOK_SIGNATURE_SALT=sgate_wh_32bytes_min_change_in_production
+      - API_KEY_SALT=sgate_api_32bytes_min_change_in_production
+      - API_BASE_URL=http://localhost:4000
+      - CHECKOUT_BASE_URL=http://localhost:3000
+      - REQUIRED_CONFIRMATIONS=1
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["sh", "-c", "cd /app/apps/api && echo '⏳ Waiting for database...' && until pg_isready -h postgres -p 5432 -U sgate; do sleep 2; done && echo '📊 Running migrations...' && npm run migration:run && echo '🌱 Seeding database...' && (npm run seed || echo 'Seed completed or already exists') && echo '🚀 Starting API...' && npm run start:prod"]
+    networks:
+      - sgate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    command: ["sh", "-c", "cd /app/web && npm run start"]
+    networks:
+      - sgate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sgate-network:
+    driver: bridge

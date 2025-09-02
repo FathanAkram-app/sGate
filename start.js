@@ -241,7 +241,7 @@ async function startServices() {
   logStep('6/6', 'Starting development servers...');
   
   // Start API server
-  logInfo('Starting API server on http://localhost:4001...');
+  logInfo('Starting API server on http://localhost:4000...');
   const api = spawn(getNpmCommand(), ['run', 'dev'], 
     createSpawnOptions(path.join(__dirname, 'apps', 'api')));
   
@@ -255,8 +255,8 @@ async function startServices() {
     const output = data.toString();
     if (output.includes('sGate API is running on')) {
       if (!apiReady) {
-        logSuccess('API server ready at http://localhost:4001');
-        logInfo('API Documentation: http://localhost:4001/docs');
+        logSuccess('API server ready at http://localhost:4000');
+        logInfo('API Documentation: http://localhost:4000/docs');
         apiReady = true;
       }
     }
@@ -312,8 +312,8 @@ async function startServices() {
   log('\n' + colors.green + colors.bold + '🚀 sGate is running!' + colors.reset);
   log('');
   log('Services:');
-  log(`  ${colors.blue}• API:${colors.reset}      http://localhost:4001`);
-  log(`  ${colors.blue}• Docs:${colors.reset}     http://localhost:4001/docs`);
+  log(`  ${colors.blue}• API:${colors.reset}      http://localhost:4000`);
+  log(`  ${colors.blue}• Docs:${colors.reset}     http://localhost:4000/docs`);
   log(`  ${colors.blue}• Checkout:${colors.reset} http://localhost:3000`);
   log('');
   log(`${colors.yellow}Press Ctrl+C to stop all services${colors.reset}`);

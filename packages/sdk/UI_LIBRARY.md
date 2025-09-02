@@ -406,7 +406,7 @@ sGate.CheckoutWidget('#checkout', {
 |--------|------|---------|-------------|
 | `apiKey` | string | required | Your sGate API key |
 | `theme` | `'light' \| 'dark'` | `'light'` | UI theme |
-| `apiBaseUrl` | string | `'http://localhost:4001'` | API endpoint |
+| `apiBaseUrl` | string | `'http://localhost:4000'` | API endpoint |
 | `onSuccess` | function | - | Success callback |
 | `onError` | function | - | Error callback |
 | `onCancel` | function | - | Cancel callback |

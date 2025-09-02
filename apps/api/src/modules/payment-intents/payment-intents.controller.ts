@@ -4,12 +4,13 @@ import {
   Get,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { PaymentIntentsService } from './payment-intents.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { CreatePaymentIntentDto, PaymentIntentResponseDto } from '@sgate/shared';
@@ -42,6 +43,36 @@ export class PaymentIntentsController {
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List payment intents' })
+  @ApiResponse({ status: 200, description: 'Payment intents retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Number of results to return (default: 20)' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiQuery({ name: 'from', required: false, description: 'Filter from date (ISO 8601)' })
+  @ApiQuery({ name: 'to', required: false, description: 'Filter to date (ISO 8601)' })
+  async findAll(
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('status') status?: string,
+    @Query('from') fromDate?: string,
+    @Query('to') toDate?: string,
+    @Request() req,
+  ) {
+    const merchant = req.merchant;
+    const limitNum = parseInt(limit || '20', 10);
+    const pageNum = parseInt(page || '1', 10);
+    
+    return this.paymentIntentsService.findAll(merchant.id, {
+      limit: limitNum,
+      page: pageNum,
+      status,
+      fromDate,
+      toDate,
+    });
   }
 
   @Get(':id')

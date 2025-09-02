@@ -1,20 +1,41 @@
 {
   "name": "@sgate/sdk",
   "version": "0.1.0",
-  "description": "JavaScript SDK for sGate sBTC Payment Gateway",
+  "description": "JavaScript SDK for sGate sBTC Payment Gateway - Accept sBTC payments with ease",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c --watch",
     "clean": "rm -rf dist",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@sgate/shared": "file:../shared"
+    "@sgate/shared": "^0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
@@ -27,7 +48,9 @@
     "typescript": "^5.3.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "sbtc",
@@ -36,6 +59,32 @@
     "gateway",
     "sdk",
     "javascript",
-    "typescript"
-  ]
+    "typescript",
+    "bitcoin",
+    "crypto",
+    "payments",
+    "web3",
+    "blockchain"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AOI-Foundation/sGate.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/AOI-Foundation/sGate/issues"
+  },
+  "homepage": "https://github.com/AOI-Foundation/sGate#readme",
+  "author": {
+    "name": "AOI Foundation",
+    "url": "https://github.com/AOI-Foundation"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
 }

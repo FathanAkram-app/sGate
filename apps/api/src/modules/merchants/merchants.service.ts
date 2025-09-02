@@ -1,15 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
-import { MerchantEntity } from '../../entities';
-import { generateApiKey, hashApiKey, verifyApiKey } from '@sgate/shared';
+import { MerchantEntity, PaymentIntentEntity } from '../../entities';
+import { generateApiKey, hashApiKey, verifyApiKey, PaymentIntentStatus } from '@sgate/shared';
+import * as crypto from 'crypto';
+
+interface ApiKeyRecord {
+  id: string;
+  keyPrefix: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt?: string;
+}
 
 @Injectable()
 export class MerchantsService {
   constructor(
     @InjectRepository(MerchantEntity)
     private merchantRepository: Repository<MerchantEntity>,
+    @InjectRepository(PaymentIntentEntity)
+    private paymentIntentRepository: Repository<PaymentIntentEntity>,
     private configService: ConfigService,
   ) {}
 
@@ -61,5 +72,124 @@ export class MerchantsService {
 
   private generateWebhookSecret(): string {
     return require('crypto').randomBytes(32).toString('hex');
+  }
+
+  async getDashboardStats(merchantId: string) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Get all payment intents for this merchant
+    const allPayments = await this.paymentIntentRepository.find({
+      where: { merchantId },
+    });
+
+    const recentPayments = await this.paymentIntentRepository.find({
+      where: { 
+        merchantId,
+        createdAt: MoreThan(thirtyDaysAgo),
+      },
+    });
+
+    const confirmedPayments = allPayments.filter(
+      p => p.status === PaymentIntentStatus.CONFIRMED
+    );
+    
+    const pendingPayments = allPayments.filter(
+      p => p.status === PaymentIntentStatus.REQUIRES_PAYMENT
+    );
+
+    const totalVolume = confirmedPayments.reduce(
+      (sum, p) => sum + parseInt(p.amountSats), 
+      0
+    );
+
+    const recentVolume = recentPayments
+      .filter(p => p.status === PaymentIntentStatus.CONFIRMED)
+      .reduce((sum, p) => sum + parseInt(p.amountSats), 0);
+
+    return {
+      totalPayments: allPayments.length,
+      confirmedPayments: confirmedPayments.length,
+      pendingPayments: pendingPayments.length,
+      totalVolume,
+      last30Days: {
+        payments: recentPayments.length,
+        volume: recentVolume,
+      },
+    };
+  }
+
+  async getApiKeys(merchantId: string): Promise<ApiKeyRecord[]> {
+    // For now, return mock data since we don't have a separate API keys table
+    // In production, you'd want a separate ApiKey entity
+    const merchant = await this.findById(merchantId);
+    if (!merchant) return [];
+
+    // Mock response - in production you'd query a proper api_keys table
+    return [
+      {
+        id: 'ak_' + crypto.randomBytes(8).toString('hex'),
+        keyPrefix: 'sk_test_',
+        name: 'Default API Key',
+        createdAt: merchant.createdAt.toISOString(),
+        lastUsedAt: new Date().toISOString(),
+      }
+    ];
+  }
+
+  async createApiKey(merchantId: string, name: string) {
+    // Generate new API key
+    const apiKey = 'sk_test_' + crypto.randomBytes(24).toString('hex');
+    const keyId = 'ak_' + crypto.randomBytes(8).toString('hex');
+    
+    // In production, you'd save this to an api_keys table
+    // For now, just return the generated key
+    return {
+      id: keyId,
+      key: apiKey,
+      name,
+    };
+  }
+
+  async revokeApiKey(merchantId: string, keyId: string) {
+    // In production, you'd delete from api_keys table
+    // For now, just return success
+    return true;
+  }
+
+  async getWebhookEndpoints(merchantId: string) {
+    // Mock webhook endpoints - in production you'd have a webhooks table
+    const merchant = await this.findById(merchantId);
+    if (!merchant || !merchant.webhookUrl) return [];
+
+    return [
+      {
+        id: 'we_' + crypto.randomBytes(8).toString('hex'),
+        url: merchant.webhookUrl,
+        events: [
+          'payment_intent.created',
+          'payment_intent.confirmed',
+          'payment_intent.expired'
+        ],
+        active: true,
+        createdAt: merchant.createdAt.toISOString(),
+      }
+    ];
+  }
+
+  async createWebhookEndpoint(merchantId: string, url: string, events: string[]) {
+    // In production, you'd create a new webhook endpoint record
+    // For now, update the merchant's webhook URL
+    await this.merchantRepository.update(merchantId, {
+      webhookUrl: url,
+    });
+
+    return {
+      id: 'we_' + crypto.randomBytes(8).toString('hex'),
+      url,
+      events,
+      active: true,
+      createdAt: new Date().toISOString(),
+    };
   }
 }

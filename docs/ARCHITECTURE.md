@@ -1,12 +1,12 @@
 # sGate Architecture Overview
 
-Technical architecture and design decisions for the sGate sBTC Payment Gateway.
+Production-grade architecture and design decisions for the sGate sBTC Payment Gateway.
 
 ## System Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   Backend API   │    │   Blockchain    │
+│   Checkout UI   │    │   Backend API   │    │   Blockchain    │
 │   (Next.js)     │◄──►│   (NestJS)      │◄──►│   (Stacks)      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         ▲                        ▲                        ▲
@@ -16,110 +16,154 @@ Technical architecture and design decisions for the sGate sBTC Payment Gateway.
 │   JavaScript    │    │   PostgreSQL    │    │   Hiro API      │
 │   SDK           │    │   Database      │    │   Stacks API    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Production    │    │   Redis Cache   │    │   Monitoring    │
+│   Infrastructure│    │   Rate Limiting │    │   & Logging     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ## Core Components
 
-### 1. NestJS API (`apps/api/`)
+### 1. NestJS API Backend (`apps/api/`)
 
 **Technology Stack:**
-- **Framework**: NestJS with TypeScript
-- **Database**: PostgreSQL with TypeORM
-- **Authentication**: API key-based (PBKDF2 hashed)
-- **Validation**: Class-validator with DTOs
-- **Documentation**: Swagger/OpenAPI
-- **Scheduling**: Built-in cron jobs
+- **Framework**: NestJS 10.x with TypeScript
+- **Database**: PostgreSQL 15+ with TypeORM
+- **Authentication**: PBKDF2-hashed API keys with timing-safe comparison
+- **Validation**: class-validator with DTOs + Zod schemas
+- **Documentation**: Swagger/OpenAPI auto-generated
+- **Scheduling**: Built-in cron jobs for blockchain monitoring
+- **Logging**: Structured JSON logging with request correlation
+- **Error Handling**: Global exception filter with sanitization
 
-**Key Features:**
-- RESTful API design
-- Modular architecture with dependency injection
-- Automatic request/response validation
-- Built-in error handling and logging
-- Health checks and metrics
+**Key Modules:**
+```
+src/
+├── modules/
+│   ├── auth/              # API key authentication & guards
+│   ├── merchants/         # Merchant management & API keys
+│   ├── payment-intents/   # Payment Intent CRUD operations
+│   ├── public/            # Public endpoints (no auth required)
+│   ├── watcher/           # Blockchain transaction monitoring
+│   └── webhooks/          # HMAC-signed webhook delivery
+├── entities/              # TypeORM database entities
+├── common/                # Shared filters, guards, interceptors
+└── config/                # Environment-based configuration
+```
 
-### 2. Next.js Checkout (`apps/checkout/`)
+**Security Features:**
+- PBKDF2 API key hashing with salt (10,000 iterations)
+- Timing-safe comparison for authentication
+- Request/response sanitization in logs
+- HMAC-SHA256 webhook signatures
+- Input validation with DTOs
+- Global exception handling
+
+### 2. Next.js Checkout Frontend (`apps/checkout/`)
 
 **Technology Stack:**
 - **Framework**: Next.js 14 with App Router
-- **Styling**: Tailwind CSS
-- **Components**: Custom React components
-- **State Management**: React hooks + SWR for data fetching
-- **TypeScript**: Full type safety
+- **Styling**: Tailwind CSS with custom design system
+- **Components**: React 18 with TypeScript
+- **Data Fetching**: Native fetch with error boundaries
+- **State Management**: React hooks + URL state
+- **Performance**: Server-side rendering, image optimization
 
 **Key Features:**
-- Server-side rendering for SEO
-- Real-time payment status updates
-- QR code generation for payments
-- Responsive mobile-first design
-- Automatic redirect handling
+- Dynamic payment pages at `/pi/[id]`
+- QR code generation for wallet payments
+- Real-time payment status polling (3-second intervals)
+- Mobile-responsive checkout design
+- Automatic redirect handling on success/cancel
+- Error boundary with graceful degradation
 
 ### 3. JavaScript SDK (`packages/sdk/`)
 
 **Technology Stack:**
-- **Build**: Rollup with TypeScript
-- **Output**: ESM + CommonJS + UMD
+- **Build**: Rollup with TypeScript compilation
+- **Output Formats**: ESM + CommonJS + UMD
 - **Type Safety**: Full TypeScript definitions
-- **Size**: Optimized bundle (~15KB gzipped)
+- **Bundle Size**: Optimized (<15KB gzipped)
 
-**Key Features:**
-- Payment Intent API client
-- Embeddable checkout widget
-- Framework-agnostic design
-- Automatic polling for status updates
-- Theme customization support
+**API Client Features:**
+```typescript
+import { SGateClient } from '@sgate/sdk';
+
+const client = new SGateClient({
+  apiKey: 'sk_test_...',
+  apiBaseUrl: 'https://api.sgate.com'
+});
+
+const paymentIntent = await client.createPaymentIntent({
+  amount_sats: 100000,
+  currency: 'sbtc',
+  description: 'Premium subscription'
+});
+```
 
 ### 4. Shared Utilities (`packages/shared/`)
 
-**Common Code:**
-- TypeScript types and interfaces
+**Common Libraries:**
+- TypeScript interfaces and types
 - Zod validation schemas
 - Cryptographic utilities (HMAC, hashing)
-- Business logic helpers
-- Error handling utilities
+- Business logic helpers (ID generation, memo encoding)
+- Error classes and constants
 
-## Data Architecture
+## Database Architecture
 
-### Database Schema
+### Core Schema
 
 ```sql
 -- Merchants (API key holders)
 CREATE TABLE merchants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR NOT NULL,
-    api_key_hash VARCHAR NOT NULL,
-    webhook_url VARCHAR,
-    webhook_secret VARCHAR,
+    name VARCHAR(255) NOT NULL,
+    api_key_hash VARCHAR(128) NOT NULL UNIQUE,
+    webhook_url VARCHAR(512),
+    webhook_secret VARCHAR(128),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Payment Intents (customer payment requests)
 CREATE TABLE payment_intents (
-    id VARCHAR PRIMARY KEY,           -- pi_abc123
+    id VARCHAR(32) PRIMARY KEY,              -- pi_abc123
     merchant_id UUID REFERENCES merchants(id),
     amount_sats BIGINT NOT NULL,
-    currency VARCHAR DEFAULT 'sbtc',
+    currency VARCHAR(10) DEFAULT 'sbtc',
     status payment_intent_status_enum DEFAULT 'requires_payment',
-    client_secret VARCHAR NOT NULL,
-    pay_address VARCHAR NOT NULL,
-    memo_hex VARCHAR NOT NULL,
+    client_secret VARCHAR(64) NOT NULL,
+    pay_address VARCHAR(64) NOT NULL,
+    memo_hex VARCHAR(64) NOT NULL UNIQUE,
     expires_at TIMESTAMP NOT NULL,
     metadata JSONB,
-    description VARCHAR,
-    success_url VARCHAR,
-    cancel_url VARCHAR,
-    created_at TIMESTAMP DEFAULT NOW()
+    description VARCHAR(512),
+    success_url VARCHAR(512),
+    cancel_url VARCHAR(512),
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    INDEX idx_payment_intents_merchant_id (merchant_id),
+    INDEX idx_payment_intents_status (status),
+    INDEX idx_payment_intents_memo_hex (memo_hex),
+    INDEX idx_payment_intents_expires_at (expires_at)
 );
 
 -- Payments (actual blockchain transactions)
 CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    payment_intent_id VARCHAR REFERENCES payment_intents(id),
-    tx_id VARCHAR NOT NULL,
+    payment_intent_id VARCHAR(32) REFERENCES payment_intents(id),
+    tx_id VARCHAR(64) NOT NULL,
     amount_sats BIGINT NOT NULL,
     confirmations INTEGER DEFAULT 0,
     status payment_status_enum DEFAULT 'seen',
     raw_tx JSONB,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    INDEX idx_payments_payment_intent_id (payment_intent_id),
+    INDEX idx_payments_tx_id (tx_id),
+    UNIQUE(tx_id, payment_intent_id)
 );
 
 -- Webhook Delivery Log
@@ -129,299 +173,391 @@ CREATE TABLE webhook_deliveries (
     event webhook_event_type_enum NOT NULL,
     payload_json JSONB NOT NULL,
     delivered BOOLEAN DEFAULT FALSE,
+    failed BOOLEAN DEFAULT FALSE,
     attempts INTEGER DEFAULT 0,
-    last_error VARCHAR,
-    created_at TIMESTAMP DEFAULT NOW()
+    last_error TEXT,
+    last_attempt TIMESTAMP,
+    delivered_at TIMESTAMP,
+    failed_at TIMESTAMP,
+    response_status INTEGER,
+    response_headers JSONB,
+    response_body TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    
+    INDEX idx_webhook_deliveries_merchant_id (merchant_id),
+    INDEX idx_webhook_deliveries_delivered (delivered),
+    INDEX idx_webhook_deliveries_failed (failed),
+    INDEX idx_webhook_deliveries_created_at (created_at)
 );
 ```
 
-### Indexes
+### Database Optimization
 
-```sql
--- Performance optimization indexes
-CREATE INDEX idx_merchants_api_key_hash ON merchants(api_key_hash);
-CREATE INDEX idx_payment_intents_merchant_id ON payment_intents(merchant_id);
-CREATE INDEX idx_payment_intents_status ON payment_intents(status);
-CREATE INDEX idx_payment_intents_memo_hex ON payment_intents(memo_hex);
-CREATE INDEX idx_payments_tx_id ON payments(tx_id);
-CREATE INDEX idx_webhook_deliveries_merchant_id ON webhook_deliveries(merchant_id);
+**Connection Pooling:**
+```typescript
+// Database configuration with connection pooling
+{
+  type: 'postgres',
+  url: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production',
+  extra: {
+    max: 20,                    // Maximum connections
+    min: 5,                     // Minimum connections
+    idleTimeoutMillis: 30000,   // Close idle connections
+    connectionTimeoutMillis: 2000,
+    acquireTimeoutMillis: 60000,
+    reapIntervalMillis: 1000,
+  },
+  logging: process.env.NODE_ENV !== 'production',
+}
 ```
+
+**Query Performance:**
+- Strategic indexes on frequently queried fields
+- Composite indexes for multi-column queries
+- JSONB indexes for metadata searches
+- Regular EXPLAIN ANALYZE for query optimization
 
 ## Payment Flow Architecture
 
-### 1. Payment Intent Creation
-
+### 1. Payment Intent Creation Flow
 ```
-Client → API → Database → Response
-  ↓
-Generate:
-- Unique payment intent ID (pi_abc123)
-- Client secret for security
-- Memo hex for blockchain correlation
-- Expiration timestamp
-```
-
-### 2. Checkout Experience
-
-```
-User → Checkout Page → Public API → Real-time Updates
-  ↓
-Display:
-- Payment amount in sats + USD
-- QR code for wallet scanning
-- Payment address for manual entry
-- Status polling every 3-5 seconds
+Merchant API Request
+      ↓
+  Validation & Authentication
+      ↓
+  Generate Unique IDs:
+  - Payment Intent ID (pi_abc123)
+  - Client Secret (pi_abc123_secret_xyz)
+  - Memo Hex (encoded PI ID)
+      ↓
+  Store in Database
+      ↓
+  Return Checkout URL
 ```
 
-### 3. Blockchain Detection
-
+### 2. Customer Payment Flow
 ```
-Watcher Service → Hiro API → Transaction Analysis → Database Update
-                     ↓
-               Memo Matching:
-               - Extract memo from tx
-               - Decode hex to payment intent ID
-               - Validate amount and recipient
-               - Update payment status
+Customer → Checkout Page → Display Payment Info:
+                          - Amount (sats + USD)
+                          - QR Code
+                          - Payment Address
+                          - Memo (hex)
+      ↓
+  Real-time Status Polling (3s intervals)
+      ↓
+  Payment Detected → Confirmation → Redirect
 ```
 
-### 4. Webhook Delivery
-
+### 3. Blockchain Detection Flow
 ```
-Payment Confirmed → Webhook Service → HMAC Signature → HTTP POST
-                                          ↓
-                                    Retry Logic:
-                                    - Exponential backoff
-                                    - 3 attempts by default
-                                    - Delivery logging
+Watcher Service (10s cron)
+      ↓
+  Query Hiro API for transactions
+      ↓
+  Filter sBTC transfers to gateway address
+      ↓
+  Extract & decode memo → Match Payment Intent
+      ↓
+  Validate amount & confirmations
+      ↓
+  Update payment status
+      ↓
+  Trigger webhook delivery
+```
+
+### 4. Webhook Delivery Flow
+```
+Payment Event Triggered
+      ↓
+  Generate HMAC Signature:
+  - Timestamp + Payload
+  - SHA256 with merchant webhook secret
+      ↓
+  HTTP POST with retry logic:
+  - Exponential backoff
+  - 5 attempts max
+  - 10-second timeout
+      ↓
+  Log delivery status & response
 ```
 
 ## Security Architecture
 
 ### Authentication & Authorization
 
-**API Key Authentication:**
+**API Key Security:**
 ```typescript
-// PBKDF2 hashing with salt
-const hash = crypto.pbkdf2Sync(apiKey, salt, 10000, 64, 'sha512');
+// PBKDF2 hashing with timing-safe comparison
+const hashApiKey = (apiKey: string, salt: string): string => {
+  return crypto.pbkdf2Sync(apiKey, salt, 10000, 64, 'sha512').toString('hex');
+};
 
-// Timing-safe comparison
-const isValid = crypto.timingSafeEqual(
-  Buffer.from(storedHash), 
-  Buffer.from(computedHash)
-);
+const verifyApiKey = (apiKey: string, hash: string, salt: string): boolean => {
+  const computedHash = hashApiKey(apiKey, salt);
+  return crypto.timingSafeEqual(
+    Buffer.from(hash, 'hex'),
+    Buffer.from(computedHash, 'hex')
+  );
+};
 ```
 
 **Authorization Levels:**
-- **Public endpoints**: No authentication (checkout page)
-- **Merchant endpoints**: API key required
-- **Admin endpoints**: Internal only (future)
+- **Public endpoints**: No authentication (checkout pages)
+- **Merchant endpoints**: API key required via Bearer token
+- **Internal endpoints**: Service-to-service (future)
 
 ### Webhook Security
 
-**HMAC SHA-256 Signatures:**
+**HMAC-SHA256 Signatures:**
 ```typescript
-const signature = crypto
-  .createHmac('sha256', webhookSecret)
-  .update(`${timestamp}.${payload}`)
-  .digest('hex');
+const signWebhookPayload = (payload: string, secret: string, timestamp: number): string => {
+  const signedPayload = `${timestamp}.${payload}`;
+  return crypto
+    .createHmac('sha256', secret)
+    .update(signedPayload)
+    .digest('hex');
+};
 
-const header = `t=${timestamp},v1=${signature}`;
+// Header format: t=1234567890,v1=signature_here
 ```
 
 **Security Measures:**
-- Timestamp validation (5-minute tolerance)
+- 5-minute timestamp tolerance window
 - Timing-safe signature comparison
-- Replay attack prevention
+- Replay attack prevention via timestamp
 - HTTPS enforcement in production
+- Request size limits (1MB max)
 
-### Input Validation
+### Input Validation & Sanitization
 
-**Zod Schemas:**
+**Multi-layer Validation:**
+1. **DTO Validation**: class-validator decorators
+2. **Zod Schemas**: Runtime type checking
+3. **Business Logic**: Domain-specific validation
+4. **Database Constraints**: Final integrity checks
+
+**Sensitive Data Handling:**
 ```typescript
-const CreatePaymentIntentDto = z.object({
-  amount_sats: z.number().int().positive(),
-  currency: z.literal('sbtc'),
-  description: z.string().optional(),
-  // ... other fields with validation
-});
+// Log sanitization removes sensitive fields
+const sanitizeBody = (body: any) => {
+  const sensitive = ['api_key', 'client_secret', 'webhook_secret'];
+  const sanitized = { ...body };
+  sensitive.forEach(field => {
+    if (sanitized[field]) sanitized[field] = '[REDACTED]';
+  });
+  return sanitized;
+};
 ```
-
-**Validation Pipeline:**
-1. Request validation (class-validator)
-2. DTO transformation and sanitization
-3. Business logic validation
-4. Database constraint validation
 
 ## Blockchain Integration
 
-### Stacks Integration
+### Stacks Network Integration
 
-**Transaction Detection:**
+**Transaction Detection Strategy:**
 ```typescript
-// Poll Hiro API for address transactions
-const transactions = await hiro.getAddressTransactions(gatewayAddress);
+// Poll Hiro API for gateway address transactions
+const detectPayments = async () => {
+  const transactions = await hiro.getAddressTransactions(gatewayAddress, {
+    limit: 50,
+    offset: 0
+  });
 
-// Filter for sBTC transfers
-const sbtcTransfers = transactions.filter(tx => 
-  tx.ft_transfers?.some(transfer => 
-    transfer.asset_identifier === sbtcAssetIdentifier &&
-    transfer.recipient === gatewayAddress
-  )
-);
+  for (const tx of transactions) {
+    if (tx.tx_status !== 'success' || !tx.canonical) continue;
 
-// Match memo to payment intent
-const memo = extractMemo(transaction);
-const paymentIntentId = decodePaymentIntentMemo(memo);
-```
-
-**Confirmation Handling:**
-```typescript
-// Check confirmations against requirement
-const confirmations = currentBlockHeight - tx.block_height + 1;
-const isConfirmed = confirmations >= requiredConfirmations;
-
-if (isConfirmed && paymentIntent.status === 'processing') {
-  await updatePaymentStatus(paymentIntentId, 'confirmed');
-  await triggerWebhook(paymentIntent, 'payment_intent.succeeded');
-}
-```
-
-### sBTC Asset Configuration
-
-**Environment Variables:**
-```bash
-# Asset identifier for sBTC contract
-SBTC_ASSET_IDENTIFIER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sbtc-token::sbtc
-
-# Gateway address for receiving payments
-GATEWAY_ADDRESS=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-
-# Required confirmations (1-2 for testnet)
-REQUIRED_CONFIRMATIONS=1
-```
-
-## Scalability Considerations
-
-### Database Scaling
-
-**Read Replicas:**
-```typescript
-// TypeORM configuration for read/write splitting
-const connectionOptions = {
-  replication: {
-    master: { host: 'primary-db.example.com' },
-    slaves: [
-      { host: 'read-replica-1.example.com' },
-      { host: 'read-replica-2.example.com' }
-    ]
+    // Extract sBTC transfers
+    const transfers = extractFTTransfers(tx);
+    
+    for (const transfer of transfers) {
+      if (transfer.asset_identifier === sbtcAssetId &&
+          transfer.recipient === gatewayAddress) {
+        
+        const memo = extractMemo(tx);
+        const paymentIntentId = decodePaymentIntentMemo(memo);
+        
+        if (paymentIntentId) {
+          await processPayment(paymentIntentId, tx, transfer);
+        }
+      }
+    }
   }
 };
 ```
 
-**Connection Pooling:**
+**Confirmation Handling:**
 ```typescript
-const dataSource = new DataSource({
-  // ... other options
-  extra: {
-    max: 100,           // Maximum connections
-    min: 10,            // Minimum connections
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+const processPayment = async (paymentIntent, transaction, transfer) => {
+  const currentHeight = await getCurrentBlockHeight();
+  const confirmations = currentHeight - transaction.block_height + 1;
+  const requiredConfirmations = config.stacks.requiredConfirmations;
+
+  if (confirmations >= requiredConfirmations) {
+    await updatePaymentIntentStatus(paymentIntent.id, 'confirmed');
+    await triggerWebhook(paymentIntent, 'payment_intent.succeeded');
+  } else {
+    await updatePaymentIntentStatus(paymentIntent.id, 'processing');
   }
-});
+};
 ```
 
-### Caching Strategy
+### Memo Encoding/Decoding
 
-**Redis Integration (Optional):**
+**Payment Intent ID Encoding:**
 ```typescript
-// Cache payment intent status
-await redis.setex(`pi:${paymentIntentId}:status`, 300, status);
+// Encode payment intent ID as hex for blockchain memo
+const encodePaymentIntentMemo = (paymentIntentId: string): string => {
+  return Buffer.from(paymentIntentId).toString('hex');
+};
 
-// Cache exchange rates
-await redis.setex('exchange:usd_per_btc', 3600, usdPerBtc);
+const decodePaymentIntentMemo = (memoHex: string): string | null => {
+  try {
+    return Buffer.from(memoHex, 'hex').toString('utf8');
+  } catch {
+    return null;
+  }
+};
 ```
 
-### Worker Scaling
+## Production Infrastructure
 
-**Horizontal Scaling:**
+### Container Architecture
+
+**Multi-stage Docker Builds:**
+```dockerfile
+# Production API Dockerfile
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+COPY . .
+RUN npm run build
+
+FROM node:18-alpine AS runtime
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S sgate -u 1001
+USER sgate
+WORKDIR /app
+COPY --from=builder --chown=sgate:nodejs /app/dist ./dist
+COPY --from=builder --chown=sgate:nodejs /app/node_modules ./node_modules
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:4000/health || exit 1
+CMD ["node", "dist/main.js"]
+```
+
+**Production Docker Compose:**
 ```yaml
-# Docker Compose scaling
-docker-compose up --scale watcher=3
+version: '3.8'
+
+services:
+  api:
+    image: sgate/api:${VERSION}
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - sgate-network
+
+  checkout:
+    image: sgate/checkout:${VERSION}
+    deploy:
+      replicas: 2
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_BASE_URL}
+    networks:
+      - sgate-network
+
+  postgres:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: sgate_production
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/ssl/certs
 ```
 
-**Queue System (Future):**
-```typescript
-// Bull Queue for background jobs
-const webhookQueue = new Queue('webhooks');
-
-webhookQueue.add('deliver', {
-  webhookId,
-  paymentIntentId,
-  event: 'payment_intent.succeeded'
-});
-```
-
-## Monitoring & Observability
-
-### Logging Strategy
+### Monitoring & Observability
 
 **Structured Logging:**
 ```typescript
+// Request correlation with unique IDs
 logger.info('Payment intent created', {
   paymentIntentId: pi.id,
   merchantId: pi.merchantId,
   amountSats: pi.amountSats,
-  requestId: context.requestId
+  requestId: context.requestId,
+  userAgent: request.headers['user-agent'],
+  ip: request.ip
 });
 ```
 
-**Log Levels:**
-- **ERROR**: System errors, webhook failures
-- **WARN**: Business logic warnings, retries
-- **INFO**: Request lifecycle, payment events
-- **DEBUG**: Detailed debugging (development only)
-
-### Health Checks
-
-**API Health Endpoint:**
+**Health Checks:**
 ```typescript
 @Get('health')
-async healthCheck() {
-  const dbStatus = await this.db.query('SELECT 1');
-  const blockchainStatus = await this.hiro.getLatestBlock();
-  
+async healthCheck(): Promise<HealthCheckResult> {
+  const results = await Promise.allSettled([
+    this.database.query('SELECT 1'),
+    this.hiro.getLatestBlock(),
+    this.redis.ping()
+  ]);
+
   return {
-    status: 'ok',
+    status: results.every(r => r.status === 'fulfilled') ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
     services: {
-      database: dbStatus ? 'healthy' : 'unhealthy',
-      blockchain: blockchainStatus ? 'healthy' : 'unhealthy'
-    }
+      database: results[0].status === 'fulfilled' ? 'healthy' : 'unhealthy',
+      blockchain: results[1].status === 'fulfilled' ? 'healthy' : 'unhealthy',
+      cache: results[2].status === 'fulfilled' ? 'healthy' : 'unhealthy'
+    },
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: process.env.npm_package_version
   };
 }
 ```
 
-### Metrics Collection
-
-**Key Metrics:**
-- Request count and response times
-- Payment intent creation rate
-- Payment confirmation rate  
-- Webhook delivery success rate
+**Metrics Collection:**
+- Request count and latency by endpoint
+- Payment intent creation/confirmation rates
+- Webhook delivery success rates
 - Database connection pool usage
-- Error rates by endpoint
+- Error rates and types
+- Business KPIs (payment volume, merchant activity)
 
-## Performance Optimization
+### Performance Optimization
 
-### API Performance
-
-**Response Caching:**
+**API Response Caching:**
 ```typescript
-// Cache payment intent responses
+// Cache payment intent responses for 5 minutes
 @UseInterceptors(CacheInterceptor)
-@CacheTTL(300) // 5 minutes
+@CacheTTL(300)
 @Get('payment_intents/:id')
 async findOne(@Param('id') id: string) {
   return this.paymentIntentsService.findOne(id);
@@ -429,161 +565,56 @@ async findOne(@Param('id') id: string) {
 ```
 
 **Database Query Optimization:**
-```typescript
-// Eager loading with relations
-const paymentIntent = await this.repository.findOne({
-  where: { id },
-  relations: ['payments', 'merchant']
-});
+- Connection pooling with configurable limits
+- Query result caching for frequently accessed data
+- Eager loading optimization for related entities
+- Regular performance monitoring with EXPLAIN ANALYZE
 
-// Query result caching
-@CacheQuery(300)
-async findRequiringPayment() {
-  return this.repository.find({
-    where: { status: In(['requires_payment', 'processing']) }
-  });
-}
-```
-
-### Frontend Performance
-
-**Next.js Optimizations:**
-- Static generation for landing pages
-- Incremental static regeneration for dynamic content
+**Frontend Performance:**
+- Next.js static generation for landing pages
 - Image optimization with next/image
 - Code splitting and lazy loading
+- Bundle size monitoring and optimization
 
-**Bundle Optimization:**
-```javascript
-// next.config.js
-module.exports = {
-  experimental: {
-    optimizeCss: true,
-  },
-  swcMinify: true,
-  compiler: {
-    removeConsole: process.env.NODE_ENV === 'production'
-  }
-};
-```
+## Security Compliance
 
-## Development Workflow
+### Data Protection
+- **PCI Compliance**: No card data stored (sBTC only)
+- **GDPR Compliance**: Minimal personal data collection
+- **Data Retention**: Configurable retention policies
+- **Encryption**: Data at rest and in transit
 
-### Monorepo Structure
+### Security Monitoring
+- **Intrusion Detection**: Failed authentication monitoring
+- **Rate Limiting**: Per-API-key request limits
+- **Audit Logging**: Complete audit trail for sensitive operations
+- **Vulnerability Scanning**: Regular dependency and container scans
 
-**pnpm Workspaces:**
-```json
-{
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
-}
-```
+## Scalability Architecture
 
-**Dependency Management:**
-- Shared dependencies in root package.json
-- App-specific dependencies in respective package.json
-- Workspace protocol for internal dependencies
+### Horizontal Scaling
+**Load Balancing:**
+- Nginx reverse proxy with round-robin
+- Health check-based routing
+- Session affinity not required (stateless design)
 
-### Build Pipeline
+**Database Scaling:**
+- Read replicas for query distribution
+- Connection pooling with PgBouncer
+- Sharding strategy for multi-tenant growth
 
-**Development:**
-```bash
-pnpm dev          # Start all services in development mode
-pnpm build        # Build all packages for production
-pnpm test         # Run all tests across workspace
-```
+**Cache Layer:**
+- Redis for session storage and rate limiting
+- Application-level caching for frequent queries
+- CDN for static assets
 
-**Production Build:**
-```dockerfile
-# Multi-stage Docker build
-FROM node:18-alpine AS builder
-COPY . .
-RUN pnpm install --frozen-lockfile
-RUN pnpm build
-
-FROM node:18-alpine AS runtime
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-CMD ["node", "dist/main.js"]
-```
-
-## Deployment Architecture
-
-### Container Strategy
-
-**Microservices Deployment:**
-```yaml
-# Docker Compose production
-services:
-  api:
-    image: sgate/api:latest
-    replicas: 3
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-    
-  checkout:
-    image: sgate/checkout:latest
-    replicas: 2
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_BASE_URL=${API_BASE_URL}
-    
-  postgres:
-    image: postgres:15-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-```
-
-### Infrastructure Requirements
-
-**Minimum Production Setup:**
-- **API Server**: 2 CPU cores, 4GB RAM
-- **Database**: 2 CPU cores, 8GB RAM, SSD storage
-- **Load Balancer**: HTTPS termination, health checks
-- **Monitoring**: Application and infrastructure metrics
-
-**Recommended Production Setup:**
-- **API Servers**: 3x instances (2 CPU, 4GB RAM each)
-- **Database**: Primary + read replica (4 CPU, 16GB RAM each)
-- **Redis**: Caching layer (2 CPU, 4GB RAM)
-- **CDN**: Static asset delivery
-- **Monitoring**: APM, logging, alerting
-
-## Future Architecture Considerations
-
-### Planned Enhancements
-
-**Multi-tenancy:**
-- Merchant isolation at database level
-- Per-merchant rate limiting
-- Custom webhook configurations
-
-**Event Sourcing:**
-- Immutable event log
-- Payment state reconstruction
-- Audit trail capabilities
-
-**API Gateway:**
-- Rate limiting and throttling
-- Request/response transformation
-- API versioning management
-
-**Message Queues:**
-- Asynchronous webhook delivery
-- Payment processing pipeline
-- Event-driven architecture
-
-### Scalability Roadmap
-
-**Phase 1**: Current MVP architecture
-**Phase 2**: Caching layer + read replicas
-**Phase 3**: Message queues + worker scaling
-**Phase 4**: Microservices decomposition
-**Phase 5**: Multi-region deployment
+### Performance Targets
+- **API Response Time**: <200ms p95
+- **Database Query Time**: <50ms p95
+- **Webhook Delivery**: <5s p95
+- **Checkout Page Load**: <2s first contentful paint
+- **Uptime**: 99.9% SLA target
 
 ---
 
-This architecture provides a solid foundation for a production-grade payment gateway while maintaining simplicity and developer experience. The modular design allows for incremental scaling and feature additions as the system grows.
+This architecture provides enterprise-grade reliability, security, and scalability while maintaining developer experience and operational simplicity. The modular design enables incremental improvements and feature additions as the platform evolves.
