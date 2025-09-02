@@ -19,7 +19,7 @@ services:
       - postgres_logs:/var/log/postgresql
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     ports:
-      - "5432:5432"
+      - "9020:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sgate_prod -d sgate_production"]
       interval: 10s
@@ -88,7 +88,7 @@ services:
       - redis_data:/data
       - redis_logs:/var/log/redis
     ports:
-      - "6379:6379"
+      - "9021:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -134,8 +134,8 @@ services:
     env_file:
       - ./apps/api/.env.production
     ports:
-      - "4000:4000"
-      - "9090:9090"  # Metrics port
+      - "9022:4000"
+      - "9023:9090"  # Metrics port
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,7 +187,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${API_BASE_URL}
     ports:
-      - "3000:3000"
+      - "9024:3000"
     depends_on:
       - api
     healthcheck:
@@ -218,8 +218,8 @@ services:
     container_name: sgate-nginx-prod
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "9025:80"
+      - "9026:443"
     volumes:
       - ./infra/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/conf.d:/etc/nginx/conf.d:ro
@@ -264,7 +264,7 @@ services:
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
     ports:
-      - "9091:9090"
+      - "9027:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/prometheus/rules:/etc/prometheus/rules:ro
@@ -298,7 +298,7 @@ services:
     container_name: sgate-grafana-prod
     restart: unless-stopped
     ports:
-      - "3002:3000"
+      - "9028:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
@@ -350,8 +350,8 @@ services:
       - postgres_logs:/var/log/postgres:ro
       - redis_logs:/var/log/redis:ro
     ports:
-      - "24224:24224"
-      - "24224:24224/udp"
+      - "9029:24224"
+      - "9029:24224/udp"
     networks:
       - sgate-network
     environment:
