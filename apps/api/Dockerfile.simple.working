@@ -1,0 +1,41 @@
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache curl tini
+
+# Create app user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S sgate -u 1001 -G nodejs
+
+WORKDIR /app
+
+# Copy everything and install dependencies
+COPY . .
+RUN npm install
+
+# Build shared package first 
+RUN cd packages/shared && npm run build
+
+# Build API
+RUN cd apps/api && npm run build
+
+# Install production dependencies
+RUN npm prune --production
+
+# Create directories and fix permissions
+RUN mkdir -p logs tmp && chown -R sgate:nodejs /app
+
+# Switch to app user
+USER sgate
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:4000/health || exit 1
+
+EXPOSE 4000
+
+# Environment
+ENV NODE_ENV=production
+
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "apps/api/dist/apps/api/src/main.js"]

@@ -35,10 +35,8 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.redis = new Redis(redisUrl, {
-        retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
         lazyConnect: true,
-        keepAlive: 30000,
         connectTimeout: this.configService.get<number>('redis.connectTimeout'),
         keyPrefix: this.configService.get<string>('redis.prefix') + ':cache:',
       });

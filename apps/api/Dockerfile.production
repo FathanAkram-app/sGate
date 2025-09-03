@@ -1,5 +1,5 @@
 # Multi-stage Docker build for production
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install security updates and required tools
 RUN apk update && apk upgrade && \
@@ -23,7 +23,7 @@ COPY apps/api/package*.json ./apps/api/
 COPY packages/*/package*.json ./packages/*/
 
 # Install dependencies (including dev dependencies for build)
-RUN npm ci --include=dev && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # Build stage
 FROM base AS builder
@@ -34,7 +34,7 @@ COPY . .
 RUN npm run build
 
 # Remove dev dependencies and rebuild for production
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # Production stage
 FROM base AS runtime

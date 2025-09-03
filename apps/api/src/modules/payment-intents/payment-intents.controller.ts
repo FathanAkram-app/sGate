@@ -55,12 +55,12 @@ export class PaymentIntentsController {
   @ApiQuery({ name: 'from', required: false, description: 'Filter from date (ISO 8601)' })
   @ApiQuery({ name: 'to', required: false, description: 'Filter to date (ISO 8601)' })
   async findAll(
+    @Request() req,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('status') status?: string,
     @Query('from') fromDate?: string,
     @Query('to') toDate?: string,
-    @Request() req,
   ) {
     const merchant = req.merchant;
     const limitNum = parseInt(limit || '20', 10);

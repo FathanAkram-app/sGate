@@ -1,0 +1,91 @@
+FROM node:20-alpine AS base
+
+# Install necessary packages
+RUN apk add --no-cache \
+    dumb-init \
+    curl \
+    tini && \
+    rm -rf /var/cache/apk/*
+
+# Create app user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S sgate -u 1001 -G nodejs
+
+WORKDIR /app
+
+# Copy package files for API only
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+
+# Install dependencies
+RUN npm install
+
+# Copy source code for shared package and API only
+COPY packages/shared ./packages/shared
+COPY apps/api ./apps/api
+
+# Build shared package first
+RUN cd packages/shared && npm run build
+
+# Build API
+RUN cd apps/api && npm run build
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/tmp && \
+    chown -R sgate:nodejs /app
+
+# Switch to non-root user
+USER sgate
+
+# Copy health check script
+COPY --chown=sgate:nodejs <<EOF /app/healthcheck.js
+const http = require('http');
+
+const options = {
+  hostname: 'localhost',
+  port: process.env.PORT || 4000,
+  path: '/health/live',
+  method: 'GET',
+  timeout: 3000,
+};
+
+const req = http.request(options, (res) => {
+  if (res.statusCode === 200) {
+    process.exit(0);
+  } else {
+    console.error(\`Health check failed with status: \${res.statusCode}\`);
+    process.exit(1);
+  }
+});
+
+req.on('error', (err) => {
+  console.error('Health check error:', err.message);
+  process.exit(1);
+});
+
+req.on('timeout', () => {
+  console.error('Health check timeout');
+  req.destroy();
+  process.exit(1);
+});
+
+req.end();
+EOF
+
+# Expose port
+EXPOSE 4000
+
+# Environment variables
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=2048 --enable-source-maps"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node /app/healthcheck.js
+
+# Use tini as PID 1 for proper signal handling
+ENTRYPOINT ["tini", "--"]
+
+# Start the application
+CMD ["node", "/app/apps/api/dist/apps/api/src/main.js"]

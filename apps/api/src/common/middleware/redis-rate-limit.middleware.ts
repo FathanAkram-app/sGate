@@ -25,10 +25,8 @@ export class RedisRateLimitMiddleware implements NestMiddleware {
     const redisUrl = this.configService.get<string>('redis.url');
     if (redisUrl) {
       this.redis = new Redis(redisUrl, {
-        retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
         lazyConnect: true,
-        keepAlive: 30000,
         connectTimeout: this.configService.get<number>('redis.connectTimeout'),
         keyPrefix: this.configService.get<string>('redis.prefix') + ':ratelimit:',
       });

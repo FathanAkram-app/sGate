@@ -5,7 +5,6 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ValidationGuard } from './common/guards/validation.guard';
 
 async function bootstrap() {
@@ -20,8 +19,7 @@ async function bootstrap() {
   // Global error handling
   app.useGlobalFilters(new HttpExceptionFilter());
   
-  // Global request logging
-  app.useGlobalInterceptors(new LoggingInterceptor());
+  // Global request logging will be handled by middleware
   
   // Global validation guards
   app.useGlobalGuards(new ValidationGuard());
@@ -98,9 +96,7 @@ async function bootstrap() {
           value: error.value,
         }));
         
-        return new ValidationPipe().createExceptionFactory()(
-          formattedErrors.map(e => e.message).join('; ')
-        );
+        return new ValidationPipe().createExceptionFactory()(errors);
       },
     }),
   );

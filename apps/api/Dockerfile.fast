@@ -1,0 +1,47 @@
+FROM node:20-alpine
+
+# Install necessary packages
+RUN apk add --no-cache curl tini && \
+    rm -rf /var/cache/apk/*
+
+# Create app user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S sgate -u 1001 -G nodejs
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN npm install --production=false
+
+# Copy source
+COPY packages/shared ./packages/shared
+COPY apps/api ./apps/api
+
+# Build packages
+RUN cd packages/shared && npm run build && \
+    cd ../.. && cd apps/api && npm run build
+
+# Create required directories
+RUN mkdir -p logs tmp && chown -R sgate:nodejs /app
+
+# Switch to app user
+USER sgate
+
+# Expose port
+EXPOSE 4000
+
+# Environment
+ENV NODE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:4000/health/live || exit 1
+
+# Start the application - use the correct path based on NestJS output structure
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "/app/apps/api/dist/apps/api/src/main.js"]

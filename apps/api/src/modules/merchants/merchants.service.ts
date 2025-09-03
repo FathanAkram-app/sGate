@@ -6,7 +6,7 @@ import { MerchantEntity, PaymentIntentEntity } from '../../entities';
 import { generateApiKey, hashApiKey, verifyApiKey, PaymentIntentStatus } from '@sgate/shared';
 import * as crypto from 'crypto';
 
-interface ApiKeyRecord {
+export interface ApiKeyRecord {
   id: string;
   keyPrefix: string;
   name: string;

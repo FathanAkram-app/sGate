@@ -37,6 +37,27 @@ export class WebhookDeliveryEntity {
   @Column({ name: 'last_error', nullable: true })
   lastError?: string;
 
+  @Column({ default: false })
+  failed: boolean;
+
+  @Column({ name: 'failed_at', nullable: true })
+  failedAt?: Date;
+
+  @Column({ name: 'last_attempt', nullable: true })
+  lastAttempt?: Date;
+
+  @Column({ name: 'response_status', nullable: true })
+  responseStatus?: number;
+
+  @Column({ name: 'response_headers', nullable: true })
+  responseHeaders?: string;
+
+  @Column({ name: 'response_body', nullable: true })
+  responseBody?: string;
+
+  @Column({ name: 'delivered_at', nullable: true })
+  deliveredAt?: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

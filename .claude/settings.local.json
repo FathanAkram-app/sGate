@@ -29,7 +29,15 @@
       "Bash(git remote add:*)",
       "Bash(git add:*)",
       "Bash(git push:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npm run start:prod:*)",
+      "Bash(npm run start:*)",
+      "Bash(npm run migration:run:*)",
+      "Bash(PORT=4000 npm run start:prod)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c:*)",
+      "Bash(PORT=4001 npm run start:prod)",
+      "Bash(NEXT_PUBLIC_API_BASE_URL=http://localhost:4001 npm run start)"
     ],
     "deny": [],
     "ask": []
