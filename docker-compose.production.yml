@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - postgres_logs:/var/log/postgresql
     ports:
-      - "5432:5432"
+      - "9020:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sgate_prod -d sgate_production"]
       interval: 10s
@@ -67,7 +67,7 @@ services:
       - redis_data:/data
       - redis_logs:/var/log/redis
     ports:
-      - "6379:6379"
+      - "9021:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_secure_password}", "ping"]
       interval: 10s
@@ -160,7 +160,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL:-http://localhost:4000}
     ports:
-      - "3000:3000"
+      - "9024:3000"
     depends_on:
       - api
     healthcheck:
@@ -191,8 +191,8 @@ services:
     container_name: sgate-nginx-prod
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "9025:80"
+      - "9026:443"
     volumes:
       - ./infra/nginx/nginx.simple.conf:/etc/nginx/nginx.conf:ro
       - ./infra/ssl:/etc/ssl/certs:ro
