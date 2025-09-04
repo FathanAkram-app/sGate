@@ -192,4 +192,51 @@ export class MerchantsService {
       createdAt: new Date().toISOString(),
     };
   }
+
+  async updateWebhookEndpoint(
+    merchantId: string,
+    id: string,
+    data: { url?: string; events?: string[]; active?: boolean },
+  ) {
+    const merchant = await this.findById(merchantId);
+    if (!merchant) return null;
+
+    if (data.active === false) {
+      await this.merchantRepository.update(merchantId, {
+        webhookUrl: null,
+        webhookSecret: null,
+      });
+      return {
+        id,
+        url: merchant.webhookUrl,
+        events: data.events || [],
+        active: false,
+        createdAt: merchant.createdAt.toISOString(),
+      };
+    }
+
+    if (data.url) {
+      await this.merchantRepository.update(merchantId, { webhookUrl: data.url });
+    }
+
+    return {
+      id,
+      url: data.url || merchant.webhookUrl,
+      events: data.events || [
+        'payment_intent.created',
+        'payment_intent.confirmed',
+        'payment_intent.expired',
+      ],
+      active: data.active ?? true,
+      createdAt: merchant.createdAt.toISOString(),
+    };
+  }
+
+  async deleteWebhookEndpoint(merchantId: string, id: string) {
+    await this.merchantRepository.update(merchantId, {
+      webhookUrl: null,
+      webhookSecret: null,
+    });
+    return { message: 'Webhook endpoint deleted' };
+  }
 }

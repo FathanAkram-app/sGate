@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Param,
@@ -114,5 +115,25 @@ export class MerchantsController {
     }
 
     return this.merchantsService.createWebhookEndpoint(merchant.id, dto.url, dto.events);
+  }
+
+  @Put('webhooks/:id')
+  @ApiOperation({ summary: 'Update webhook endpoint' })
+  @ApiResponse({ status: 200, description: 'Webhook endpoint updated successfully' })
+  async updateWebhook(
+    @Param('id') id: string,
+    @Body() dto: { url?: string; events?: string[]; active?: boolean },
+    @Request() req,
+  ) {
+    const merchant = req.merchant;
+    return this.merchantsService.updateWebhookEndpoint(merchant.id, id, dto);
+  }
+
+  @Delete('webhooks/:id')
+  @ApiOperation({ summary: 'Delete webhook endpoint' })
+  @ApiResponse({ status: 200, description: 'Webhook endpoint deleted successfully' })
+  async deleteWebhook(@Param('id') id: string, @Request() req) {
+    const merchant = req.merchant;
+    return this.merchantsService.deleteWebhookEndpoint(merchant.id, id);
   }
 }

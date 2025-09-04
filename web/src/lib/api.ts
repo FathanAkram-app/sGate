@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { PaymentIntentResponseDto } from '@sgate/shared';
+import { getAuthToken } from './auth';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';
 
@@ -8,9 +9,9 @@ const apiClient = axios.create({
   baseURL: API_BASE,
 });
 
-// Add auth token to requests if available
+// Add auth token from cookies to requests if available
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('sgate_api_key');
+  const token = getAuthToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -60,7 +61,7 @@ export function formatUsd(amount: number): string {
 export const api = {
   async getDashboardStats(): Promise<DashboardStats> {
     try {
-      const response = await apiClient.get('/v1/dashboard/stats');
+      const response = await apiClient.get('/v1/merchants/stats');
       return response.data;
     } catch (error) {
       console.error('Failed to fetch dashboard stats:', error);
@@ -90,7 +91,7 @@ export const api = {
 
   async getApiKeys(): Promise<any[]> {
     try {
-      const response = await apiClient.get('/v1/api-keys');
+      const response = await apiClient.get('/v1/merchants/api-keys');
       return response.data || [];
     } catch (error) {
       console.error('Failed to fetch API keys:', error);
@@ -100,7 +101,7 @@ export const api = {
 
   async createApiKey(data: { name: string; permissions?: string[]; expiresIn?: string | null }): Promise<any> {
     try {
-      const response = await apiClient.post('/v1/api-keys', data);
+      const response = await apiClient.post('/v1/merchants/api-keys', data);
       return response.data;
     } catch (error) {
       console.error('Failed to create API key:', error);
@@ -108,56 +109,27 @@ export const api = {
     }
   },
 
-  async deleteApiKey(id: string): Promise<void> {
-    try {
-      await apiClient.delete(`/v1/api-keys/${id}`);
-    } catch (error) {
-      console.error('Failed to delete API key:', error);
-      throw error;
-    }
-  },
-
   async revokeApiKey(id: string): Promise<void> {
     try {
-      await apiClient.delete(`/v1/api-keys/${id}`);
+      await apiClient.delete(`/v1/merchants/api-keys/${id}`);
     } catch (error) {
       console.error('Failed to revoke API key:', error);
       throw error;
     }
   },
-
-  async getWebhooks(): Promise<any[]> {
-    try {
-      const response = await apiClient.get('/v1/webhooks');
-      return response.data || [];
-    } catch (error) {
-      console.error('Failed to fetch webhooks:', error);
-      return [];
-    }
-  },
-
   async getWebhookEndpoints(): Promise<any[]> {
     try {
-      const response = await apiClient.get('/v1/webhooks');
+      const response = await apiClient.get('/v1/merchants/webhooks');
       return response.data || [];
     } catch (error) {
       console.error('Failed to fetch webhooks:', error);
       return [];
-    }
-  },
-
-  async updateWebhook(data: any): Promise<void> {
-    try {
-      await apiClient.put('/v1/webhooks', data);
-    } catch (error) {
-      console.error('Failed to update webhook:', error);
-      throw error;
     }
   },
 
   async createWebhookEndpoint(url: string, events: string[]): Promise<void> {
     try {
-      await apiClient.post('/v1/webhooks', { url, events });
+      await apiClient.post('/v1/merchants/webhooks', { url, events });
     } catch (error) {
       console.error('Failed to create webhook endpoint:', error);
       throw error;
@@ -166,7 +138,7 @@ export const api = {
 
   async deleteWebhookEndpoint(id: string): Promise<void> {
     try {
-      await apiClient.delete(`/v1/webhooks/${id}`);
+      await apiClient.delete(`/v1/merchants/webhooks/${id}`);
     } catch (error) {
       console.error('Failed to delete webhook endpoint:', error);
       throw error;
@@ -175,7 +147,7 @@ export const api = {
 
   async updateWebhookEndpoint(id: string, data: any): Promise<void> {
     try {
-      await apiClient.put(`/v1/webhooks/${id}`, data);
+      await apiClient.put(`/v1/merchants/webhooks/${id}`, data);
     } catch (error) {
       console.error('Failed to update webhook endpoint:', error);
       throw error;
