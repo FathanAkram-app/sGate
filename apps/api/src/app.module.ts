@@ -15,7 +15,6 @@ import { PaymentIntentsModule } from './modules/payment-intents/payment-intents.
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { WatcherModule } from './modules/watcher/watcher.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { PublicModule } from './modules/public/public.module';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
 
 @Module({
@@ -45,7 +44,6 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
     WebhooksModule,
     WatcherModule,
     AuthModule,
-    PublicModule,
   ],
   controllers: [AppController],
 })
