@@ -26,7 +26,9 @@ async function bootstrap() {
 
   // Enhanced CORS with security considerations
   const isDevelopment = process.env.NODE_ENV === 'development';
-  
+  const corsOrigin = configService.get<string>('cors.origin');
+  const corsCredentials = configService.get<boolean>('cors.credentials');
+
   if (isDevelopment) {
     // Development: Permissive CORS for testing
     app.enableCors({
@@ -34,27 +36,31 @@ async function bootstrap() {
         logger.debug(`CORS request from origin: ${origin}`);
         callback(null, true); // Allow all origins in development
       },
-      credentials: true,
+      credentials: corsCredentials ?? true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
       allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
-        'X-Requested-With', 
-        'Accept', 
-        'Origin', 
-        'X-Request-ID'
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'X-Request-ID',
       ],
       exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
     });
   } else {
     // Production: Restricted CORS
+    const defaultOrigins = [
+      'https://checkout.sgate.com',
+      'https://dashboard.sgate.com',
+      'https://sgate.com',
+    ];
+    const origins = corsOrigin
+      ? corsOrigin.split(',').map((o) => o.trim())
+      : defaultOrigins;
     app.enableCors({
-      origin: [
-        'https://checkout.sgate.com',
-        'https://dashboard.sgate.com',
-        'https://sgate.com',
-      ],
-      credentials: true,
+      origin: origins,
+      credentials: corsCredentials ?? true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
       allowedHeaders: [
         'Content-Type',
