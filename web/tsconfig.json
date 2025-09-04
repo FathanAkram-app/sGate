@@ -14,7 +14,9 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@sgate/shared": ["../packages/shared/src"],
+      "@sgate/shared/*": ["../packages/shared/src/*"]
     },
     "plugins": [
       {

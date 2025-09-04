@@ -1,10 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Settings, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 
 export function DashboardHeader() {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = () => {
+    logout();
+    router.push('/auth/login');
+  };
 
   return (
     <header className="bg-white border-b border-gray-200">
@@ -50,7 +59,10 @@ export function DashboardHeader() {
                       Settings
                     </button>
                     <hr className="border-gray-100" />
-                    <button className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left">
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full text-left"
+                    >
                       <LogOut className="w-4 h-4 mr-2" />
                       Sign Out
                     </button>
