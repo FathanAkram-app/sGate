@@ -130,16 +130,17 @@ Key settings:
    - API: `cd apps/api && npm run start:prod` (port 4000)
    - Checkout: `cd apps/checkout && npm run dev` (port 3000)
 3. Services will be available at:
-   - API: http://localhost:4000 (with Swagger docs at /docs)
-   - Checkout: http://localhost:3000
-   - PostgreSQL on port 5432
+   - API: http://localhost:9022 (with Swagger docs at /docs)
+   - Checkout: http://localhost:9023
+   - PostgreSQL on port 9020
+   - Redis on port 9021
 
-**Note**: If ports 4000-4000 are in use, create `apps/api/.env` with `PORT=4000`
+**Note**: Services now use port range 9020-9030 to avoid conflicts
 
 ### Working with Payment Intents
 ```bash
 # Create test payment intent
-curl -X POST http://localhost:4000/v1/payment_intents \
+curl -X POST http://localhost:9022/v1/payment_intents \
   -H "Authorization: Bearer <API_KEY_FROM_SEED>" \
   -H "Content-Type: application/json" \
   -d '{"amount_sats": 100000, "currency": "sbtc", "description": "Test"}'

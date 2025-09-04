@@ -1,103 +1,131 @@
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    container_name: sgate-postgres
+    restart: unless-stopped
     environment:
+      POSTGRES_DB: sgate
       POSTGRES_USER: sgate
       POSTGRES_PASSWORD: sgate
-      POSTGRES_DB: sgate
-    ports:
-      - "5432:5432"
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "9020:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sgate"]
+      test: ["CMD-SHELL", "pg_isready -U sgate -d sgate"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     networks:
       - sgate-network
 
+  # Redis for caching
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    container_name: sgate-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "sgate_redis"]
     volumes:
       - redis_data:/data
+    ports:
+      - "9021:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "sgate_redis", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
     networks:
       - sgate-network
 
+  # API Service
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./apps/api/Dockerfile
+      target: development
+    container_name: sgate-api
+    restart: unless-stopped
     environment:
       - NODE_ENV=development
       - PORT=4000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USERNAME=sgate
-      - DB_PASSWORD=sgate
-      - DB_NAME=sgate
-      - DATABASE_URL=postgres://sgate:sgate@postgres:5432/sgate
+      - DATABASE_URL=postgresql://sgate:sgate@postgres:5432/sgate
+      - REDIS_URL=redis://default:sgate_redis@redis:6379
+      - API_KEY_SALT=sgate_api_32bytes_min_change_in_production
+      - WEBHOOK_SIGNATURE_SALT=sgate_wh_32bytes_min_change_in_production
+      - JWT_SECRET=dev-sgate-jwt-secret-change-in-production
       - STACKS_NETWORK=testnet
       - HIRO_API_BASE=https://api.testnet.hiro.so
       - SBTC_ASSET_IDENTIFIER=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sbtc-token::sbtc
       - GATEWAY_ADDRESS=ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-      - JWT_SECRET=dev-sgate-jwt-secret-change-in-production
-      - WEBHOOK_SIGNATURE_SALT=sgate_wh_32bytes_min_change_in_production
-      - API_KEY_SALT=sgate_api_32bytes_min_change_in_production
-      - API_BASE_URL=http://localhost:4000
-      - CHECKOUT_BASE_URL=http://localhost:3000
+      - API_BASE_URL=http://localhost:9022
+      - CHECKOUT_BASE_URL=http://localhost:9023
       - REQUIRED_CONFIRMATIONS=1
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/packages/shared/node_modules
+      - /app/apps/api/node_modules
     ports:
-      - "4000:4000"
+      - "9022:4000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: ["sh", "-c", "cd /app/apps/api && echo '⏳ Waiting for database...' && until pg_isready -h postgres -p 5432 -U sgate; do sleep 2; done && echo '📊 Running migrations...' && npm run migration:run && echo '🌱 Seeding database...' && (npm run seed || echo 'Seed completed or already exists') && echo '🚀 Starting API...' && npm run start:prod"]
     networks:
       - sgate-network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
+  # Web Dashboard
   web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./web/Dockerfile
+      target: development
+    container_name: sgate-web
+    restart: unless-stopped
     environment:
       - NODE_ENV=development
       - PORT=3000
-      - NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:9022
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/packages/shared/node_modules
+      - /app/web/node_modules
+      - /app/web/.next
     ports:
-      - "3000:3000"
+      - "9023:3000"
     depends_on:
-      api:
-        condition: service_healthy
-    command: ["sh", "-c", "cd /app/web && npm run start"]
+      - api
     networks:
       - sgate-network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
+    driver: local
 
 networks:
   sgate-network:
     driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16

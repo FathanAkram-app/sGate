@@ -7,12 +7,13 @@ services:
     environment:
       POSTGRES_DB: sgate_production
       POSTGRES_USER: sgate_prod
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-sgate_secure_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sgate_secure_password_change_me}
       POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=md5"
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - postgres_logs:/var/log/postgresql
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "9020:5432"
     healthcheck:
@@ -37,14 +38,13 @@ services:
         max-size: "100m"
         max-file: "3"
 
-  # Redis for caching and sessions
+  # Redis for caching
   redis:
     image: redis:7-alpine
     container_name: sgate-redis-prod
     restart: unless-stopped
     command: |
       sh -c '
-      mkdir -p /usr/local/etc/redis &&
       echo "
       bind 0.0.0.0
       port 6379
@@ -58,18 +58,18 @@ services:
       protected-mode yes
       tcp-keepalive 300
       timeout 0
-      " > /usr/local/etc/redis/redis.conf &&
-      redis-server /usr/local/etc/redis/redis.conf
+      " > /etc/redis/redis.conf &&
+      redis-server /etc/redis/redis.conf
       '
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secure_password}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secure_password_change_me}
     volumes:
       - redis_data:/data
       - redis_logs:/var/log/redis
     ports:
       - "9021:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_secure_password}", "ping"]
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_secure_password_change_me}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -93,45 +93,39 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./apps/api/Dockerfile.simple.working
+      dockerfile: ./apps/api/Dockerfile
+      target: production
     image: sgate/api:${VERSION:-latest}
     container_name: sgate-api-prod
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://sgate_prod:${DB_PASSWORD:-sgate_secure_password}@postgres:5432/sgate_production
-      REDIS_URL: redis://default:${REDIS_PASSWORD:-redis_secure_password}@redis:6379
+      DATABASE_URL: postgresql://sgate_prod:${DB_PASSWORD:-sgate_secure_password_change_me}@postgres:5432/sgate_production
+      REDIS_URL: redis://default:${REDIS_PASSWORD:-redis_secure_password_change_me}@redis:6379
       API_KEY_SALT: ${API_KEY_SALT:-sgate_api_32bytes_min_change_in_production}
       WEBHOOK_SIGNATURE_SALT: ${WEBHOOK_SIGNATURE_SALT:-sgate_wh_32bytes_min_change_in_production}
-      JWT_SECRET: ${JWT_SECRET:-dev-sgate-jwt-secret-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
       STACKS_NETWORK: ${STACKS_NETWORK:-testnet}
       HIRO_API_BASE: ${HIRO_API_BASE:-https://api.testnet.hiro.so}
       SBTC_ASSET_IDENTIFIER: ${SBTC_ASSET_IDENTIFIER:-ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.sbtc-token::sbtc}
       GATEWAY_ADDRESS: ${GATEWAY_ADDRESS:-ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM}
-      API_BASE_URL: ${API_BASE_URL:-http://localhost:4000}
-      CHECKOUT_BASE_URL: ${CHECKOUT_BASE_URL:-http://localhost:3000}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:9022}
+      CHECKOUT_BASE_URL: ${CHECKOUT_BASE_URL:-http://localhost:9023}
       REQUIRED_CONFIRMATIONS: ${REQUIRED_CONFIRMATIONS:-1}
       RATE_LIMIT_ENABLED: "true"
-      ENABLE_METRICS: "false"
+      ENABLE_METRICS: "true"
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       TRUST_PROXY: "1"
+    volumes:
+      - api_logs:/app/logs
     ports:
-      - "4000:4000"
+      - "9022:4000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - api_logs:/app/logs
-      - api_tmp:/app/tmp
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     networks:
       - sgate-network
     deploy:
@@ -147,28 +141,30 @@ services:
       options:
         max-size: "100m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Web Dashboard
   web:
     build:
       context: .
-      dockerfile: ./infra/Dockerfile.dashboard.simple
+      dockerfile: ./web/Dockerfile
+      target: production
     image: sgate/web:${VERSION:-latest}
     container_name: sgate-web-prod
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL:-http://localhost:4000}
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ${API_BASE_URL:-http://localhost:9022}
     ports:
-      - "9024:3000"
+      - "9023:3000"
     depends_on:
       - api
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
     networks:
       - sgate-network
     deploy:
@@ -184,44 +180,12 @@ services:
       options:
         max-size: "50m"
         max-file: "3"
-
-  # Nginx Reverse Proxy (Optional - for production SSL/routing)
-  nginx:
-    image: nginx:alpine
-    container_name: sgate-nginx-prod
-    restart: unless-stopped
-    ports:
-      - "9025:80"
-      - "9026:443"
-    volumes:
-      - ./infra/nginx/nginx.simple.conf:/etc/nginx/nginx.conf:ro
-      - ./infra/ssl:/etc/ssl/certs:ro
-      - nginx_logs:/var/log/nginx
-    depends_on:
-      - api
-      - web
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - sgate-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-        reservations:
-          memory: 128M
-          cpus: '0.1'
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "3"
-    profiles:
-      - nginx
+      start_period: 30s
 
 volumes:
   postgres_data:
@@ -234,10 +198,6 @@ volumes:
     driver: local
   api_logs:
     driver: local
-  api_tmp:
-    driver: local
-  nginx_logs:
-    driver: local
 
 networks:
   sgate-network:
@@ -245,13 +205,4 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.20.0.0/16
-
-# Production deployment commands:
-# 1. Create .env file with production values
-# 2. docker-compose -f docker-compose.production.clean.yml build
-# 3. docker-compose -f docker-compose.production.clean.yml up -d
-# 4. docker-compose -f docker-compose.production.clean.yml logs -f api
-# 
-# To include nginx: 
-# docker-compose -f docker-compose.production.clean.yml --profile nginx up -d
+        - subnet: 172.25.0.0/16

@@ -117,9 +117,8 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Docker files
-Dockerfile*
-docker-compose*
+# Docker files (keep only necessary ones)
+docker-compose*.yml
 .dockerignore
 
 # Git

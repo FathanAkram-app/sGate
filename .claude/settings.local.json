@@ -37,7 +37,8 @@
       "Bash(taskkill:*)",
       "Bash(cmd /c:*)",
       "Bash(PORT=4001 npm run start:prod)",
-      "Bash(NEXT_PUBLIC_API_BASE_URL=http://localhost:4001 npm run start)"
+      "Bash(NEXT_PUBLIC_API_BASE_URL=http://localhost:4001 npm run start)",
+      "Bash(docker:*)"
     ],
     "deny": [],
     "ask": []
