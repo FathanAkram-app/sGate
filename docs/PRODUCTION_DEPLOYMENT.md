@@ -36,7 +36,7 @@ JWT_SECRET=your_secure_jwt_secret_here
 
 # External Services
 SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
-CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=https://yourdomain.com,https://dashboard.yourdomain.com # Comma-separated origins are supported
 
 # Monitoring
 GRAFANA_PASSWORD=your_secure_grafana_password_here
