@@ -98,9 +98,9 @@ export const api = {
     }
   },
 
-  async createApiKey(name: string): Promise<any> {
+  async createApiKey(data: { name: string; permissions?: string[]; expiresIn?: string | null }): Promise<any> {
     try {
-      const response = await apiClient.post('/v1/api-keys', { name });
+      const response = await apiClient.post('/v1/api-keys', data);
       return response.data;
     } catch (error) {
       console.error('Failed to create API key:', error);

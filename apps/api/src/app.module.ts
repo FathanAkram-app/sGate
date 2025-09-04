@@ -34,7 +34,7 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
         password: process.env.DB_PASSWORD || 'sgate',
         database: process.env.DB_NAME || 'sgate',
         entities: [MerchantEntity, PaymentIntentEntity, PaymentEntity, WebhookDeliveryEntity],
-        synchronize: process.env.NODE_ENV === 'development',
+        synchronize: false,
         logging: process.env.NODE_ENV === 'development',
       }),
     }),
