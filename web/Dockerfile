@@ -32,7 +32,8 @@ RUN cd packages/shared && npm run build
 EXPOSE 3000
 
 # Start in development mode
-CMD ["npm", "--prefix", "web", "run", "dev"]
+WORKDIR /app/web
+CMD ["npm", "run", "dev"]
 
 # Production build stage
 FROM base AS builder
